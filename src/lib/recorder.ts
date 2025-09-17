@@ -1,4 +1,5 @@
 import type p5 from "p5";
+import { AppError, createExportError, withRetry, withPerformanceMonitoring, errorManager } from "./errorHandling";
 
 export type ExportFormat = "webm" | "gif" | "png";
 
@@ -34,51 +35,68 @@ export async function exportAnimation({
   onInfo,
 }: RecorderOptions): Promise<RecorderResult> {
   if (totalFrames <= 0) {
-    throw new Error("Total frames must be > 0");
+    throw createExportError("export-validation", new Error("Total frames must be > 0"), { totalFrames });
   }
 
-  if (format === "webm") {
-    return exportWebm({
-      format,
-      width,
-      height,
-      fps,
-      totalFrames,
-      createSketch,
-      onProgress,
-      onFrame,
-      signal,
-      onInfo,
-    });
+  if (width <= 0 || height <= 0) {
+    throw createExportError("export-validation", new Error("Width and height must be > 0"), { width, height });
   }
 
-  if (format === "gif") {
-    return exportGif({
-      format,
-      width,
-      height,
-      fps,
-      totalFrames,
-      createSketch,
-      onProgress,
-      onFrame,
-      signal,
-      onInfo,
-    });
+  if (fps <= 0) {
+    throw createExportError("export-validation", new Error("FPS must be > 0"), { fps });
   }
 
-  return exportPngZip({
-    format,
-    width,
-    height,
-    fps,
-    totalFrames,
-    createSketch,
-    onProgress,
-    onFrame,
-    signal,
-    onInfo,
-  });
+  try {
+    return await withPerformanceMonitoring(async () => {
+      if (format === "webm") {
+        return exportWebm({
+          format,
+          width,
+          height,
+          fps,
+          totalFrames,
+          createSketch,
+          onProgress,
+          onFrame,
+          signal,
+          onInfo,
+        });
+      }
+
+      if (format === "gif") {
+        return exportGif({
+          format,
+          width,
+          height,
+          fps,
+          totalFrames,
+          createSketch,
+          onProgress,
+          onFrame,
+          signal,
+          onInfo,
+        });
+      }
+
+      return exportPngZip({
+        format,
+        width,
+        height,
+        fps,
+        totalFrames,
+        createSketch,
+        onProgress,
+        onFrame,
+        signal,
+        onInfo,
+      });
+    }, `export-${format}`, 30000);
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw createExportError(`export-${format}`, error as Error, { format, width, height, fps, totalFrames });
+  }
 }
 
 async function exportWebm({
@@ -120,7 +138,13 @@ async function exportWebm({
 
   const stream = canvas.captureStream(fps);
   if (typeof MediaRecorder === "undefined") {
-    throw new Error("MediaRecorder API not available in this browser.");
+    throw createExportError("webm-browser-support", new Error("MediaRecorder API not available in this browser."),
+      { userAgent: navigator.userAgent });
+  }
+
+  // Check if VP9 codec is supported
+  if (!MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+    console.warn("VP9 codec not supported, falling back to default codec");
   }
 
   const recorder = new MediaRecorder(stream, {
@@ -147,7 +171,10 @@ async function exportWebm({
       cleanup();
     };
     recorder.onerror = (event) => {
-      reject(new Error(`Recorder error: ${event.error?.name ?? "unknown"}`));
+      const error = createExportError("webm-recording",
+        new Error(`Recorder error: ${event.error?.name ?? "unknown"}`),
+        { errorName: event.error?.name, errorMessage: event.error?.message });
+      reject(error);
       onInfo?.({ stage: "error", detail: event.error?.message });
       cleanup();
     };
@@ -223,7 +250,9 @@ async function exportGif({
 
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    throw new Error("Failed to access 2D context for GIF export");
+    throw createExportError("gif-canvas-context",
+      new Error("Failed to access 2D context for GIF export"),
+      { canvasWidth: canvas.width, canvasHeight: canvas.height });
   }
 
   const encoder = GIFEncoder();
@@ -408,7 +437,9 @@ async function waitForCanvas(sketch: p5, container: HTMLElement): Promise<HTMLCa
     const retryDom = container.querySelector("canvas") as HTMLCanvasElement | null;
     if (retryDom) return retryDom;
   }
-  throw new Error("Failed to create recording canvas");
+  throw createExportError("canvas-creation",
+    new Error("Failed to create recording canvas after multiple attempts"),
+    { retryAttempts: 10 });
 }
 
 type MonochromePalette = {

@@ -7,6 +7,7 @@ import { effects } from "@/effects";
 import { createShareUrl } from "@/lib/shareUrls";
 import { useNotificationStore } from "@/store/useNotifications";
 import { useEditorStore } from "@/store/useEditor";
+import { useBlendingStore } from "@/store/useBlending";
 
 function SectionLabel({ label }: { label: string }) {
   return (
@@ -37,8 +38,13 @@ export function TopBar() {
   const toggleInvert = useEditorStore((state) => state.toggleInvert);
   const qualityMode = useEditorStore((state) => state.qualityMode);
   const setQualityMode = useEditorStore((state) => state.setQualityMode);
+  const timelineMode = useEditorStore((state) => state.timelineMode);
+  const toggleTimelineMode = useEditorStore((state) => state.toggleTimelineMode);
   const addNotification = useNotificationStore((state) => state.addNotification);
   const [shareBusy, setShareBusy] = useState(false);
+
+  const blendingEnabled = useBlendingStore((state) => state.blendingEnabled);
+  const toggleBlending = useBlendingStore((state) => state.toggleBlending);
 
   const handleShare = async () => {
     try {
@@ -120,7 +126,7 @@ export function TopBar() {
             label="Width"
             value={width}
             min={32}
-            max={2048}
+            max={8192}
             integer
             onChange={(next) => setSize(next, height)}
             className="w-[152px]"
@@ -129,7 +135,7 @@ export function TopBar() {
             label="Height"
             value={height}
             min={32}
-            max={2048}
+            max={8192}
             integer
             onChange={(next) => setSize(width, next)}
             className="w-[152px]"
@@ -138,7 +144,7 @@ export function TopBar() {
             label="FPS"
             value={fps}
             min={1}
-            max={30}
+            max={120}
             integer
             onChange={(next) => setFps(next)}
             className="w-[128px]"
@@ -147,7 +153,7 @@ export function TopBar() {
             label="Duration"
             value={durationSec}
             min={1}
-            max={30}
+            max={120}
             integer
             onChange={(next) => setDuration(next)}
             className="w-[152px]"
@@ -211,6 +217,32 @@ export function TopBar() {
               Render
             </button>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <SectionLabel label="Timeline" />
+          <button
+            type="button"
+            onClick={toggleTimelineMode}
+            className={`border border-ink px-3 py-2 text-xs ${
+              timelineMode ? "bg-ink text-paper" : "bg-paper hover:bg-ink hover:text-paper"
+            }`}
+          >
+            {timelineMode ? "ON" : "OFF"}
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <SectionLabel label="Blending" />
+          <button
+            type="button"
+            onClick={toggleBlending}
+            className={`border border-ink px-3 py-2 text-xs ${
+              blendingEnabled ? "bg-ink text-paper" : "bg-paper hover:bg-ink hover:text-paper"
+            }`}
+          >
+            {blendingEnabled ? "ON" : "OFF"}
+          </button>
         </div>
 
         <div className="flex flex-col gap-1">

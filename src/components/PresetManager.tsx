@@ -26,7 +26,11 @@ export function PresetManager() {
     const preset = savePreset(name, snapshot);
     setName("");
     refresh();
-    addNotification(`Saved preset "${preset.name}"`, "success");
+    if (preset) {
+      addNotification(`Saved preset "${preset.name}"`, "success");
+    } else {
+      addNotification("Failed to save preset", "error");
+    }
   };
 
   const handleApply = (preset: PresetRecord) => {

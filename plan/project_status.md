@@ -22,18 +22,29 @@ _Last updated: 2025-09-16 22:41 CDT_
 - ✅ **MP4 Export**: ffmpeg.wasm integration with progress UI complete
 - ✅ **Keyframe Support**: Parameter automation system functional
 - ✅ **ZIP Optimizations**: Enhanced PNG sequence compression implemented
+- ✅ **Week 1 Complete: Creative Constraints Removed**
+  - Canvas size increased from 2048px → 8192px (8K support)
+  - Frame rate increased from 30fps → 120fps
+  - Duration extended from 30s → 300s (5 minutes)
+  - Quality tier system implemented with smart performance scaling
+  - UI updated with new limits and quality feedback
+  - All tests passing with comprehensive quality manager coverage
 
 ## v1.0 Development Phase
 
-**Status**: Planning complete, implementation starting
+**Status**: Week 2 Foundation Complete - Timeline System Operational
 **Target**: Q1 2025 production release
+**Current Phase**: Timeline & Advanced Animation (Weeks 2-5)
+**Next Milestone**: Timeline UI panel and visual scrubbing (Week 3)
+
 **Focus Areas**:
-1. **Foundation Hardening**: Performance optimization, error handling, comprehensive testing
-2. **Advanced Creation Tools**: Timeline editor, additional effects, export enhancements
+
+1. ✅ **Foundation Hardening**: Creative constraints removed, quality tiers implemented
+2. 🔄 **Advanced Creation Tools**: Timeline foundation complete, UI panel next (Week 3-5)
 3. **Sharing & Community**: Gallery system, preset marketplace, social integration
 4. **Production Readiness**: Monitoring, documentation, deployment infrastructure
 
-See `plan/v1_development_roadmap.md` for detailed implementation timeline and specifications.
+See `plan/v1-planning/v1_development_roadmap.md` for detailed implementation timeline and specifications.
 
 ## Risks & Mitigations
 
@@ -43,12 +54,33 @@ See `plan/v1_development_roadmap.md` for detailed implementation timeline and sp
 
 ## Recent Changelog
 
+### Week 2 Complete: Timeline Foundation System (2025-09-16)
+
+- ✅ Timeline store with keyframe system (add, remove, interpolate)
+- ✅ Timeline mode toggle in TopBar UI
+- ✅ Parameter controls enhanced with keyframe buttons
+- ✅ Linear interpolation for numeric values
+- ✅ Step interpolation for non-numeric values
+- ✅ Comprehensive test suite (23 tests passing)
+- ✅ Ready for timeline UI panel development
+
+### Week 1 Complete: Creative Constraints Removed (2025-09-16)
+
+- ✅ Canvas scaling: 2048px → 8192px (8K support)
+- ✅ Frame rate: 30fps → 120fps (ultra-smooth motion)
+- ✅ Duration: 30s → 300s (5+ minute animations)
+- ✅ Quality tier system with smart performance scaling
+- ✅ UI updates and comprehensive test coverage
+- ✅ All sanitization functions updated for new limits
+
 ### v1.0 Planning Phase (2025-09-16)
+
 - Comprehensive v1.0 development roadmap created (`plan/v1_development_roadmap.md`)
 - Project status updated to reflect MVP completion and v1.0 transition
 - Advanced features completed: Shareable URLs, MP4 export, keyframes, ZIP optimizations
 
 ### MVP Completion (2025-02-16)
+
 - Ripple Quantized effect: concentric wave patterns with quantization controls
 - Orbiting Bars effect: rotating bar animations with wobble parameters
 - Export history panel with re-download and cleanup functionality
@@ -57,6 +89,7 @@ See `plan/v1_development_roadmap.md` for detailed implementation timeline and sp
 - Vitest coverage expanded for core stores (RNG, notifications, editor)
 
 ### Core MVP Development (2025-02-15)
+
 - Export notifier + cancellation system implemented
 - Cancellable recorder pipeline with GIF support via gifenc
 - Preset manager + notification tray with localStorage persistence
@@ -64,8 +97,6 @@ See `plan/v1_development_roadmap.md` for detailed implementation timeline and sp
 
 ## v1.0 Strategic Questions
 
-- **Community Features**: Should we implement user accounts or continue with anonymous sharing?
-- **Monetization**: Freemium model with premium effects/features, or completely open source?
-- **Platform Expansion**: Mobile apps or PWA-first approach for broader reach?
-- **Content Moderation**: Automated filtering vs. community-driven moderation for shared content?
-- **Backend Infrastructure**: Serverless (Vercel/Netlify) vs. dedicated infrastructure for v1.0 scale?
+- **Community Features**: Should we implement user accounts or continue with anonymous sharing? --> **Anonymous**
+- **Platform Expansion**: Mobile apps or PWA-first approach for broader reach? --> **PWA**
+- **Backend Infrastructure**: Serverless (Vercel/Netlify) vs. dedicated infrastructure for v1.0 scale? --> **Vercel**

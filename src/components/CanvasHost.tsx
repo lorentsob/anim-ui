@@ -5,8 +5,11 @@ import type p5 from "p5";
 
 import { getEffect } from "@/effects";
 import type { ParamValues } from "@/effects/types";
+import { AppError, createCanvasError, createAnimationError, safeOperation, errorManager } from "@/lib/errorHandling";
 import { createRng, hashSeed } from "@/lib/rng";
 import { useEditorStore, type Background } from "@/store/useEditor";
+import { useNotificationStore } from "@/store/useNotifications";
+import { useTimelineStore } from "@/store/useTimeline";
 
 type RuntimeData = {
   width: number;
@@ -71,7 +74,16 @@ export function CanvasHost() {
   const background = useEditorStore((state) => state.background);
   const invert = useEditorStore((state) => state.invert);
   const qualityMode = useEditorStore((state) => state.qualityMode);
+  const timelineMode = useEditorStore((state) => state.timelineMode);
   const setCurrentFrame = useEditorStore((state) => state.setCurrentFrame);
+  const addNotification = useNotificationStore((state) => state.addNotification);
+  const getAnimatedValue = useTimelineStore((state) => state.getAnimatedValue);
+  const setCurrentTime = useTimelineStore((state) => state.setCurrentTime);
+  const timelineCurrentTime = useTimelineStore((state) => state.currentTime);
+
+  // Track if timeline time changed externally (from scrubbing)
+  const lastTimelineTime = useRef<number>(0);
+  const isTimelineControlled = useRef<boolean>(false);
 
   useEffect(() => {
     runtimeRef.current.width = width;
@@ -128,8 +140,9 @@ export function CanvasHost() {
     let lastFrameReported = -1;
 
     const setupP5 = async () => {
-      const { default: P5Constructor } = await import("p5");
-      if (!mounted || !containerRef.current) return;
+      try {
+        const { default: P5Constructor } = await import("p5");
+        if (!mounted || !containerRef.current) return;
 
       const sketch = (p: p5) => {
         let frameIndex = 0;
@@ -139,36 +152,63 @@ export function CanvasHost() {
         let colors = computeColors(runtimeRef.current.background, runtimeRef.current.invert);
 
         const resetCtx = () => {
-          const runtime = runtimeRef.current;
-          currentEffect = getEffect(runtime.effectId);
-          const seedHash = hashSeed(runtime.seed);
-          const baseData: Record<string, unknown> = {};
-          effectCtxRef.current = {
-            data: baseData,
-            seedHash,
-            baseSeed: runtime.seed,
-          };
-          colors = computeColors(runtime.background, runtime.invert);
-          frameIndex = 0;
-          accumulator = 0;
-          lastTime = performance.now();
-          lastFrameReported = -1;
-          setCurrentFrame(0);
-          runtime.needsReset = false;
-          if (p.width !== runtime.width || p.height !== runtime.height) {
-            p.resizeCanvas(runtime.width, runtime.height);
+          try {
+            const runtime = runtimeRef.current;
+            currentEffect = getEffect(runtime.effectId);
+            const seedHash = hashSeed(runtime.seed);
+            const baseData: Record<string, unknown> = {};
+            effectCtxRef.current = {
+              data: baseData,
+              seedHash,
+              baseSeed: runtime.seed,
+            };
+            colors = computeColors(runtime.background, runtime.invert);
+            frameIndex = 0;
+            accumulator = 0;
+            lastTime = performance.now();
+            lastFrameReported = -1;
+            setCurrentFrame(0);
+
+            // Reset timeline tracking
+            lastTimelineTime.current = 0;
+            isTimelineControlled.current = false;
+            runtime.needsReset = false;
+            if (p.width !== runtime.width || p.height !== runtime.height) {
+              p.resizeCanvas(runtime.width, runtime.height);
+            }
+            p.noSmooth();
+            p.pixelDensity(1);
+            p.background(colors.paper);
+            const initContext = {
+              rng: createRng(`${effectCtxRef.current.baseSeed}-init`),
+              data: baseData,
+              seedHash,
+              colors,
+            };
+            currentEffect.init(p, initContext, runtime.params);
+            effectCtxRef.current.data = initContext.data ?? baseData;
+          } catch (error) {
+            const appError = createAnimationError("effect-init", error as Error, { effectId: runtimeRef.current.effectId });
+            errorManager.handleError(appError);
+            addNotification("Animation initialization failed. Trying to recover...", "error");
+
+            // Try to recover with default parameters
+            try {
+              const runtime = runtimeRef.current;
+              const defaultEffect = getEffect("square-drift"); // fallback to known working effect
+              currentEffect = defaultEffect;
+              const initContext = {
+                rng: createRng(`fallback-init`),
+                data: {},
+                seedHash: hashSeed("fallback"),
+                colors: { paper: 255, ink: 0 },
+              };
+              defaultEffect.init(p, initContext, {});
+              addNotification("Recovered with fallback effect", "info");
+            } catch (recoveryError) {
+              console.error("Failed to recover from effect initialization error:", recoveryError);
+            }
           }
-          p.noSmooth();
-          p.pixelDensity(1);
-          p.background(colors.paper);
-          const initContext = {
-            rng: createRng(`${effectCtxRef.current.baseSeed}-init`),
-            data: baseData,
-            seedHash,
-            colors,
-          };
-          currentEffect.init(p, initContext, runtime.params);
-          effectCtxRef.current.data = initContext.data ?? baseData;
         };
 
         p.setup = () => {
@@ -181,51 +221,116 @@ export function CanvasHost() {
           const runtime = runtimeRef.current;
           if (!runtime) return;
 
-          if (runtime.needsReset) {
-            resetCtx();
-          }
-
-          const now = performance.now();
-          const deltaSec = (now - lastTime) / 1000;
-          lastTime = now;
-
-          const targetFps = Math.max(
-            1,
-            runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
-          );
-          const totalFrames = Math.max(1, Math.round(runtime.durationSec * targetFps));
-          const frameDuration = 1 / targetFps;
-
-          if (runtime.playing) {
-            accumulator += deltaSec;
-            if (accumulator >= frameDuration) {
-              const steps = Math.max(1, Math.floor(accumulator / frameDuration));
-              accumulator -= steps * frameDuration;
-              frameIndex = (frameIndex + steps) % totalFrames;
+          try {
+            if (runtime.needsReset) {
+              resetCtx();
             }
-          }
 
-          const ctxColors = computeColors(runtime.background, runtime.invert);
-          const ctxSeed = `${effectCtxRef.current.baseSeed}-frame-${frameIndex}`;
-          const ctx = {
-            rng: createRng(ctxSeed),
-            data: effectCtxRef.current.data,
-            seedHash: effectCtxRef.current.seedHash,
-            colors: ctxColors,
-          };
+            const now = performance.now();
+            const deltaSec = (now - lastTime) / 1000;
+            lastTime = now;
 
-          p.background(ctxColors.paper);
-          currentEffect.update(p, ctx, frameIndex / targetFps, frameIndex, runtime.params);
-          currentEffect.render(p, ctx, frameIndex / targetFps, frameIndex, runtime.params);
+            const targetFps = Math.max(
+              1,
+              runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
+            );
+            const totalFrames = Math.max(1, Math.round(runtime.durationSec * targetFps));
+            const frameDuration = 1 / targetFps;
 
-          if (frameIndex !== lastFrameReported) {
-            lastFrameReported = frameIndex;
-            setCurrentFrame(frameIndex);
+            // Handle playback and time calculation
+            let normalizedTime: number;
+
+            // Check if timeline time was changed externally (from scrubbing)
+            const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
+            if (timelineChanged && timelineMode) {
+              // Timeline was scrubbed - use timeline time and sync frameIndex
+              isTimelineControlled.current = true;
+              normalizedTime = timelineCurrentTime;
+              frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+              lastTimelineTime.current = timelineCurrentTime;
+            } else {
+              // Normal playback mode - advance frames when playing
+              isTimelineControlled.current = false;
+              if (runtime.playing) {
+                accumulator += deltaSec;
+                if (accumulator >= frameDuration) {
+                  const steps = Math.max(1, Math.floor(accumulator / frameDuration));
+                  accumulator -= steps * frameDuration;
+                  frameIndex = (frameIndex + steps) % totalFrames;
+                }
+              }
+
+              normalizedTime = frameIndex / totalFrames;
+
+              // In timeline mode, update timeline to match playback position
+              if (timelineMode && !isTimelineControlled.current) {
+                setCurrentTime(normalizedTime);
+                lastTimelineTime.current = normalizedTime;
+              }
+            }
+
+            const ctxColors = computeColors(runtime.background, runtime.invert);
+            const ctxSeed = `${effectCtxRef.current.baseSeed}-frame-${frameIndex}`;
+            const ctx = {
+              rng: createRng(ctxSeed),
+              data: effectCtxRef.current.data,
+              seedHash: effectCtxRef.current.seedHash,
+              colors: ctxColors,
+            };
+
+            // Use animated parameters if timeline mode is enabled
+            let effectParams = runtime.params;
+            if (timelineMode) {
+              const animatedParams: ParamValues = {};
+              Object.keys(runtime.params).forEach(paramKey => {
+                animatedParams[paramKey] = getAnimatedValue(
+                  paramKey,
+                  normalizedTime,
+                  runtime.params[paramKey]
+                );
+              });
+              effectParams = animatedParams;
+            }
+
+            p.background(ctxColors.paper);
+            currentEffect.update(p, ctx, frameIndex / targetFps, frameIndex, effectParams);
+            currentEffect.render(p, ctx, frameIndex / targetFps, frameIndex, effectParams);
+
+            if (frameIndex !== lastFrameReported) {
+              lastFrameReported = frameIndex;
+              setCurrentFrame(frameIndex);
+            }
+          } catch (error) {
+            // Graceful error handling during animation
+            const appError = createAnimationError("animation-render", error as Error, {
+              effectId: runtime.effectId,
+              frameIndex,
+              targetFps: Math.max(
+                1,
+                runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
+              )
+            });
+            errorManager.handleError(appError);
+
+            // Try to continue with simplified rendering
+            try {
+              p.background(255);
+              p.fill(0);
+              p.textAlign(p.CENTER, p.CENTER);
+              p.text("Animation Error", p.width / 2, p.height / 2);
+            } catch (fallbackError) {
+              console.error("Complete rendering failure:", fallbackError);
+            }
           }
         };
       };
 
-      instance = new P5Constructor(sketch, containerRef.current);
+        instance = new P5Constructor(sketch, containerRef.current);
+      } catch (error) {
+        const appError = createCanvasError("p5-setup", error as Error);
+        await errorManager.handleError(appError);
+        addNotification("Canvas setup failed. Please refresh the page.", "error");
+      }
     };
 
     setupP5();

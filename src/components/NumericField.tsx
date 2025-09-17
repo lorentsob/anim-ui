@@ -10,6 +10,7 @@ export type NumericFieldProps = {
   max?: number;
   step?: number;
   integer?: boolean;
+  disabled?: boolean;
   onChange: (value: number) => void;
   className?: string;
   labelClassName?: string;
@@ -34,6 +35,7 @@ export function NumericField({
   max,
   step,
   integer,
+  disabled = false,
   onChange,
   className,
   labelClassName,
@@ -46,6 +48,7 @@ export function NumericField({
   }, [value]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
     event.preventDefault();
     const pointerId = event.pointerId;
     const startX = event.clientX;
@@ -86,6 +89,7 @@ export function NumericField({
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const numeric = event.target.valueAsNumber;
     if (Number.isFinite(numeric)) {
       let next = numeric;
@@ -123,8 +127,10 @@ export function NumericField({
         onPointerDown={handlePointerDown}
         className={clsx(
           "cursor-ew-resize bg-transparent text-[11px] font-semibold tracking-[0.18em] transition-colors",
+          disabled && "opacity-50 cursor-not-allowed",
           labelClassName,
         )}
+        disabled={disabled}
       >
         {label}
       </button>
@@ -134,10 +140,12 @@ export function NumericField({
         min={min}
         max={max}
         step={step ?? (integer ? 1 : undefined)}
+        disabled={disabled}
         onChange={handleInputChange}
         onBlur={handleBlur}
         className={clsx(
           "w-[96px] border border-ink bg-paper px-3 py-1 text-right font-mono text-xs tracking-normal",
+          disabled && "opacity-50 cursor-not-allowed bg-gray-100",
           inputClassName,
         )}
       />

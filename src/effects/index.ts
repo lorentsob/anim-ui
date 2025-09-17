@@ -5,6 +5,11 @@ import { orbitingBars } from "./orbitingBars";
 import { rippleQuantized } from "./rippleQuantized";
 import { scanlineReveal } from "./scanlineReveal";
 import { squareDrift } from "./squareDrift";
+import { typographic } from "./typographic";
+import { grid } from "./grid";
+import { particle } from "./particle";
+import { geometric } from "./geometric";
+import { customDemo } from "./customDemo";
 
 export const effects: Effect[] = [
   squareDrift,
@@ -13,6 +18,11 @@ export const effects: Effect[] = [
   scanlineReveal,
   orbitingBars,
   rippleQuantized,
+  typographic,
+  grid,
+  particle,
+  geometric,
+  customDemo,
 ];
 
 export const getEffect = (id: string): Effect => {

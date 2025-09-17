@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createExportSketch } from "@/components/CanvasHost";
 import type { ExportFormat } from "@/lib/recorder";
 import { exportAnimation } from "@/lib/recorder";
+import { AppError, withRetry, errorManager } from "@/lib/errorHandling";
 import { useNotificationStore } from "@/store/useNotifications";
 import { useExportHistory } from "@/store/useExportHistory";
 import { useEditorStore } from "@/store/useEditor";
@@ -90,36 +91,38 @@ export function RecorderBar() {
     const startedAt = performance.now();
 
     try {
-      const result = await exportAnimation({
-        format,
-        width,
-        height,
-        fps,
-        totalFrames,
-        createSketch: async (container) =>
-          createExportSketch(
-            {
-              width,
-              height,
-              fps,
-              durationSec,
-              effectId,
-              params,
-              seed,
-              background,
-              invert,
-            },
-            container,
-          ),
-        onProgress: (frame, total) => {
-          setProgress({ frame: frame + 1, total });
-          setMessage(`Rendering ${frame + 1}/${total}`);
-        },
-        signal: controller.signal,
-        onInfo: ({ stage, detail }) => {
-          setMessage(detail ?? stage);
-        },
-      });
+      const result = await withRetry(async () => {
+        return exportAnimation({
+          format,
+          width,
+          height,
+          fps,
+          totalFrames,
+          createSketch: async (container) =>
+            createExportSketch(
+              {
+                width,
+                height,
+                fps,
+                durationSec,
+                effectId,
+                params,
+                seed,
+                background,
+                invert,
+              },
+              container,
+            ),
+          onProgress: (frame, total) => {
+            setProgress({ frame: frame + 1, total });
+            setMessage(`Rendering ${frame + 1}/${total}`);
+          },
+          signal: controller.signal,
+          onInfo: ({ stage, detail }) => {
+            setMessage(detail ?? stage);
+          },
+        });
+      }, format === "png" ? 1 : 2, 2000, { category: "export", operation: `export-${format}` });
 
       const url = URL.createObjectURL(result.blob);
       setDownloadUrl(url);
@@ -143,16 +146,37 @@ export function RecorderBar() {
         triggerDownload(url, result.filename);
       }
     } catch (error) {
+      // Handle cancellation
       if ((error as Error)?.name === "AbortError") {
         setStatus("cancelled");
         setMessage("Export cancelled");
         setProgress({ frame: 0, total: totalFrames });
         addNotification("Export cancelled", "info");
-      } else {
-        console.error(error);
+        return;
+      }
+
+      // Handle AppError with enhanced information
+      if (error instanceof AppError) {
+        await errorManager.handleError(error);
         setStatus("error");
-        const errorMessage =
-          error instanceof Error ? error.message : "Export failed. Check console for details.";
+        setMessage(error.userMessage);
+        addNotification(error.userMessage, "error");
+
+        // Suggest recovery actions for retryable errors
+        if (error.retryable && error.category === "export") {
+          setTimeout(() => {
+            addNotification("You can try the export again or adjust settings.", "info");
+          }, 3000);
+        }
+      } else {
+        // Handle unexpected errors
+        const errorMessage = error instanceof Error ? error.message : "Export failed. Check console for details.";
+        await errorManager.handleError(error as Error, {
+          category: "export",
+          operation: `export-${format}`,
+          severity: "medium"
+        });
+        setStatus("error");
         setMessage(errorMessage);
         addNotification(errorMessage, "error");
       }

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { useEditorStore } from "@/store/useEditor";
 import { useNotificationStore } from "@/store/useNotifications";
+import { getQualityDescription } from "@/lib/qualityManager";
 
 const pad = (value: number) => value.toString().padStart(2, "0");
 
@@ -22,6 +23,10 @@ export function StatusBar() {
   const playing = useEditorStore((state) => state.playing);
   const seed = useEditorStore((state) => state.seed);
   const effectId = useEditorStore((state) => state.effectId);
+  const qualitySettings = useEditorStore((state) => state.qualitySettings);
+  const qualityMode = useEditorStore((state) => state.qualityMode);
+  const width = useEditorStore((state) => state.width);
+  const height = useEditorStore((state) => state.height);
   const toggleNotificationPanel = useNotificationStore((state) => state.togglePanel);
   const [mounted, setMounted] = useState(false);
 
@@ -32,6 +37,9 @@ export function StatusBar() {
   const totalFrames = Math.max(1, Math.round(durationSec * Math.max(1, fps)));
   const currentTime = frame / Math.max(1, fps);
   const effect = getEffect(effectId);
+  const qualityDesc = getQualityDescription(qualitySettings, fps);
+  const resolutionText = `${width}×${height}`;
+  const isScaled = qualitySettings.previewScale < 1.0;
 
   return (
     <footer className="flex flex-wrap items-center justify-between gap-2 border border-ink bg-paper px-4 py-2 text-xs uppercase tracking-[0.18em]">
@@ -39,6 +47,12 @@ export function StatusBar() {
         Frame {frame.toString().padStart(3, "0")} · {formatTime(currentTime)} / {formatTime(durationSec)} ({
           totalFrames
         } frames @ {fps}fps)
+      </span>
+      <span>
+        {resolutionText} · {qualityMode}
+        {isScaled && (
+          <span className="text-[#666] ml-1">({qualityDesc})</span>
+        )}
       </span>
       <span>Effect · {effect.name}</span>
       <span>

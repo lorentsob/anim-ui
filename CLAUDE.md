@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BW Animator is a monochrome animation editor built with Next.js 15, p5.js, and Tailwind v4. It creates deterministic black-and-white generative animations with effects like Square Drift, ASCII Dither, Cellular Automata, and Scanline Reveal. The app exports to WebM, GIF, and PNG sequences.
+BW Animator is a monochrome animation editor built with Next.js 15, p5.js, and Tailwind v4. It creates deterministic black-and-white generative animations with 11 effects including Square Drift, ASCII Dither, Cellular Automata, and Custom Demo. Features include multi-layer effect blending with 6 blend modes, timeline-based keyframe animation, and advanced custom parameter types. The app exports to WebM, GIF, and PNG sequences.
 
 ## Development Commands
 
@@ -20,6 +20,8 @@ BW Animator is a monochrome animation editor built with Next.js 15, p5.js, and T
   - `useEditorStore` (`src/store/useEditor.ts`) - Main editor state (effects, params, canvas settings, playback)
   - `useNotifications` (`src/store/useNotifications.ts`) - Toast notifications
   - `useExportHistory` (`src/store/useExportHistory.ts`) - Export job tracking
+  - `useBlendingStore` (`src/store/useBlending.ts`) - Multi-layer effect blending system
+  - `useTimelineStore` (`src/store/useTimeline.ts`) - Keyframe animation and timeline state
 
 ### Effects System
 - Effects are modular and located in `src/effects/`
@@ -28,10 +30,14 @@ BW Animator is a monochrome animation editor built with Next.js 15, p5.js, and T
 - All effects use deterministic RNG from `src/lib/rng.ts` for reproducible animations
 
 ### Key Components
-- `CanvasHost` - p5.js instance wrapper with animation loop
-- `ParamPanel` - Dynamic parameter controls generated from effect schemas
+- `CanvasHost` - p5.js instance wrapper with animation loop (supports timeline integration)
+- `BlendedCanvasHost` - Multi-layer rendering system for effect blending
+- `ParamPanel` - Dynamic parameter controls with custom parameter types (Color, Vector2, Curve, Range)
+- `LayerPanel` - Layer management for blending system (add/remove/duplicate layers)
+- `TimelinePanel` - Visual timeline interface with keyframe editing
+- `CustomParamControls` - Advanced UI components for custom parameter types
 - `RecorderBar` - Export controls (WebM/GIF/PNG with progress tracking)
-- `TopBar` - Effect selector and global controls (size, FPS, duration)
+- `TopBar` - Effect selector and global controls (size, FPS, duration, blending, timeline toggles)
 - `StatusBar` - Frame info and notification access
 
 ### Export Pipeline

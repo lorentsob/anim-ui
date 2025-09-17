@@ -2,9 +2,10 @@
 
 import { create } from "zustand";
 import { effects, getEffect } from "@/effects";
-import type { ParamValues } from "@/effects/types";
+import type { ParamValues, ParamValue } from "@/effects/types";
 import { generateSeed } from "@/lib/rng";
 import type { StoredState } from "@/lib/storage";
+import { calculateOptimalSettings, type QualitySettings } from "@/lib/qualityManager";
 
 export type Background = "white" | "black";
 
@@ -19,6 +20,8 @@ type EditorState = {
   background: Background;
   invert: boolean;
   qualityMode: "preview" | "render";
+  qualitySettings: QualitySettings;
+  timelineMode: boolean;
   enableWarnings: boolean;
   playing: boolean;
   currentFrame: number;
@@ -26,7 +29,7 @@ type EditorState = {
   setFps: (fps: number) => void;
   setDuration: (seconds: number) => void;
   setEffectId: (id: string) => void;
-  setParam: (key: string, value: number | string | boolean) => void;
+  setParam: (key: string, value: ParamValue) => void;
   setPlaying: (playing: boolean) => void;
   togglePlaying: () => void;
   setSeed: (seed: string) => void;
@@ -34,6 +37,10 @@ type EditorState = {
   setBackground: (value: Background) => void;
   toggleInvert: () => void;
   setQualityMode: (mode: "preview" | "render") => void;
+  setQualitySettings: (settings: Partial<QualitySettings>) => void;
+  updateQualityForComplexity: () => void;
+  setTimelineMode: (enabled: boolean) => void;
+  toggleTimelineMode: () => void;
   toggleWarnings: () => void;
   setCurrentFrame: (frame: number) => void;
   loadFromStoredState: (snapshot: StoredState) => void;
@@ -43,17 +50,17 @@ const initialEffect = effects[0];
 
 const sanitizeDimension = (value: number, fallback: number) => {
   if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.round(Math.max(32, Math.min(2048, value)));
+  return Math.round(Math.max(32, Math.min(8192, value)));
 };
 
 const sanitizeFps = (value: number, fallback: number) => {
   if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.max(1, Math.min(30, Math.round(value)));
+  return Math.max(1, Math.min(120, Math.round(value)));
 };
 
 const sanitizeDuration = (value: number, fallback: number) => {
   if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.max(1, Math.min(30, Math.round(value)));
+  return Math.max(1, Math.min(300, Math.round(value)));
 };
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -67,17 +74,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   background: "white",
   invert: false,
   qualityMode: "preview",
+  qualitySettings: calculateOptimalSettings(640, 640, 12),
+  timelineMode: false,
   enableWarnings: true,
   playing: true,
   currentFrame: 0,
   setSize: (width, height) => {
+    const newWidth = sanitizeDimension(width, get().width);
+    const newHeight = sanitizeDimension(height, get().height);
+    const fps = get().fps;
+
     set({
-      width: sanitizeDimension(width, get().width),
-      height: sanitizeDimension(height, get().height),
+      width: newWidth,
+      height: newHeight,
+      qualitySettings: calculateOptimalSettings(newWidth, newHeight, fps),
     });
   },
   setFps: (fps) => {
-    set({ fps: sanitizeFps(fps, get().fps) });
+    const newFps = sanitizeFps(fps, get().fps);
+    const { width, height } = get();
+
+    set({
+      fps: newFps,
+      qualitySettings: calculateOptimalSettings(width, height, newFps),
+    });
   },
   setDuration: (seconds) => {
     set({ durationSec: sanitizeDuration(seconds, get().durationSec) });
@@ -109,6 +129,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setBackground: (value) => set({ background: value }),
   toggleInvert: () => set((state) => ({ invert: !state.invert })),
   setQualityMode: (mode) => set({ qualityMode: mode }),
+  setQualitySettings: (settings) => set((state) => ({
+    qualitySettings: { ...state.qualitySettings, ...settings }
+  })),
+  updateQualityForComplexity: () => {
+    const { width, height, fps } = get();
+    set({ qualitySettings: calculateOptimalSettings(width, height, fps) });
+  },
+  setTimelineMode: (enabled) => set({ timelineMode: enabled }),
+  toggleTimelineMode: () => set((state) => ({ timelineMode: !state.timelineMode })),
   toggleWarnings: () => set((state) => ({ enableWarnings: !state.enableWarnings })),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
   loadFromStoredState: (snapshot) => {
@@ -117,16 +146,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...effect.defaults,
       ...(snapshot.params as ParamValues),
     };
+    const width = sanitizeDimension(snapshot.width, 640);
+    const height = sanitizeDimension(snapshot.height, 640);
+    const fps = sanitizeFps(snapshot.fps, 12);
+
     set({
       effectId: effect.id,
       params: mergedParams,
-      width: sanitizeDimension(snapshot.width, 640),
-      height: sanitizeDimension(snapshot.height, 640),
-      fps: sanitizeFps(snapshot.fps, 12),
+      width,
+      height,
+      fps,
       durationSec: sanitizeDuration(snapshot.durationSec, 6),
       seed: snapshot.seed?.toUpperCase?.() ?? generateSeed(),
       background: snapshot.background,
       invert: snapshot.invert,
+      qualitySettings: calculateOptimalSettings(width, height, fps),
       currentFrame: 0,
       playing: false,
     });

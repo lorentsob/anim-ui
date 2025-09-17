@@ -14,7 +14,10 @@ Open `http://localhost:3000/editor` to launch the workspace (root redirects auto
 ## Key Features
 
 - **Deterministic playback** with seed-based RNG and Preview/Render quality toggle.
-- **Effect presets**: Square Drift, ASCII Dither, Cellular Automata, Scanline Reveal, Orbiting Bars, Ripple Quantized.
+- **Effect blending**: Multi-layer compositions with 6 professional blend modes (Normal, Multiply, Add, Subtract, XOR, Overlay).
+- **Timeline & keyframes**: Visual timeline with parameter animation and smooth interpolation.
+- **Custom parameters**: Advanced controls including Color, Vector2, Curve, and Range parameter types.
+- **Effect library**: 11 effects including Square Drift, ASCII Dither, Cellular Automata, Orbiting Bars, Custom Demo.
 - **AE-style scrubbing controls** for width/height/fps/duration and effect params.
 - **Exports**: WebM (MediaRecorder), GIF (gifenc with monochrome palette + dither), PNG ZIP with progress/ETA.
 - **Export history**: Re-download recent jobs, see file size + duration, clear entries (object URLs auto-revoked).
@@ -22,11 +25,19 @@ Open `http://localhost:3000/editor` to launch the workspace (root redirects auto
 
 ## Quickstart
 
-1. Choose an effect in the top bar (try Orbiting Bars / Ripple Quantized) and scrub parameters to taste.
-2. Flip to Render mode when ready, then trigger an export (WebM/GIF/PNG).
-3. Review the export history list for quick re-downloads or clear old jobs.
-4. Save your favourite parameter sets as presets; toast log keeps a trail if needed.
-5. Use the Share button to copy a base64 URL snapshot for teammates.
+1. Choose an effect in the top bar (try "Custom Parameters Demo" for advanced controls).
+2. **For simple animations**: Adjust parameters and export directly.
+3. **For blended compositions**: Enable "Blending" to add multiple effect layers with blend modes.
+4. **For keyframe animation**: Enable "Timeline" to animate parameters over time.
+5. **For complex projects**: Use both blending and timeline together for sophisticated animations.
+6. Save your favourite parameter sets as presets; use Share button for collaboration.
+
+### Advanced Features
+- **Blend Modes**: Try Multiply for shadows, Add for light effects, XOR for digital patterns
+- **Custom Parameters**: Use Color pickers, Vector2 positioning, Curve editors, and Range controls
+- **Timeline Animation**: Add keyframes with ● buttons, scrub timeline to preview animations
+
+📖 **[Complete Week 8 Features Guide](docs/week8-features-guide.md)** - Detailed documentation for effect blending and custom parameters
 
 ## Export Notes
 
@@ -44,7 +55,8 @@ Open `http://localhost:3000/editor` to launch the workspace (root redirects auto
 ## Testing
 
 - Vitest + Testing Library configured (`npm run test`).
-- Current coverage: RNG utilities, notification store basics, editor store behaviour.
+- Current coverage: 121+ tests covering RNG utilities, stores, blending system, custom parameters, timeline integration.
+- Test suites: Core functionality, effect blending, custom parameter types, timeline keyframes.
 
 ## QA & Roadmap
 

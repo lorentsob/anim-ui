@@ -48,8 +48,8 @@ describe("useEditorStore", () => {
     });
 
     expect(result.current.width).toBeGreaterThanOrEqual(32);
-    expect(result.current.height).toBeLessThanOrEqual(2048);
-    expect(result.current.fps).toBeLessThanOrEqual(30);
+    expect(result.current.height).toBeLessThanOrEqual(8192);
+    expect(result.current.fps).toBeLessThanOrEqual(120);
   });
 
   it("toggles playback state", () => {
