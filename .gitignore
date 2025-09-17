@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/tests
 
 # next.js
 /.next/
@@ -43,3 +44,5 @@ next-env.d.ts
 
 WARP.MD
 CLAUDE.MD
+
+/plan

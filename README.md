@@ -115,6 +115,17 @@ The codebase is well-structured for additional effects or UI improvements:
 2. **UI improvements**: Components are modular and use consistent styling
 3. **Parameter types**: Custom controls can be extended in `src/components/CustomParamControls.tsx`
 
+## 💬 Feedback & Contact
+
+I'd love to hear your thoughts on this project! Whether you found it useful, have suggestions for improvements, or encountered any issues, your feedback is valuable.
+
+**Get in touch:**
+- **GitHub Issues**: [Report bugs or suggest features](https://github.com/lorentsob/anim-ui/issues)
+- **Email**: Feel free to reach out directly with feedback or questions
+- **Social Media**: Share your creations and tag me to see what you've made!
+
+Your input helps improve the tool and demonstrates real-world usage of AI-assisted development.
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
