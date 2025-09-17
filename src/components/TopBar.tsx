@@ -219,18 +219,6 @@ export function TopBar() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <SectionLabel label="Timeline" />
-          <button
-            type="button"
-            onClick={toggleTimelineMode}
-            className={`border border-ink px-3 py-2 text-xs ${
-              timelineMode ? "bg-ink text-paper" : "bg-paper hover:bg-ink hover:text-paper"
-            }`}
-          >
-            {timelineMode ? "ON" : "OFF"}
-          </button>
-        </div>
 
         <div className="flex flex-col gap-1">
           <SectionLabel label="Blending" />

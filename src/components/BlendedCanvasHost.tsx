@@ -70,6 +70,7 @@ export function BlendedCanvasHost() {
   const qualityMode = useEditorStore((state) => state.qualityMode);
   const setCurrentFrame = useEditorStore((state) => state.setCurrentFrame);
   const mainParams = useEditorStore((state) => state.params); // Main effect parameters
+  const mainEffectId = useEditorStore((state) => state.effectId); // Main effect ID
 
   const layers = useBlendingStore((state) => state.layers);
   const timelineMode = useEditorStore((state) => state.timelineMode);
@@ -81,6 +82,18 @@ export function BlendedCanvasHost() {
   // Track if timeline time changed externally (from scrubbing)
   const lastTimelineTime = useRef<number>(0);
   const isTimelineControlled = useRef<boolean>(false);
+  const timelineControlTimeout = useRef<number | null>(null);
+
+  // Reset timeline control when timeline mode changes
+  useEffect(() => {
+    if (!timelineMode) {
+      isTimelineControlled.current = false;
+      if (timelineControlTimeout.current) {
+        clearTimeout(timelineControlTimeout.current);
+        timelineControlTimeout.current = null;
+      }
+    }
+  }, [timelineMode]);
 
   // Sync state changes
   useEffect(() => {
@@ -130,7 +143,7 @@ export function BlendedCanvasHost() {
         const { default: P5Constructor } = await import("p5");
         if (!mounted || !containerRef.current) return;
 
-        const sketch = (p: p5) => {
+          const sketch = (p: p5) => {
           let frameIndex = 0;
           let accumulator = 0;
           let lastTime = performance.now();
@@ -148,9 +161,9 @@ export function BlendedCanvasHost() {
               lastFrameReported = -1;
               setCurrentFrame(0);
 
-              // Reset timeline tracking
-              lastTimelineTime.current = 0;
-              isTimelineControlled.current = false;
+              // Reset frame tracking  
+              frameIndex = 0;
+              accumulator = 0;
 
               // Clear layer graphics - p5.Graphics don't have remove(), just clear references
               layerGraphics.forEach(graphics => {
@@ -271,6 +284,7 @@ export function BlendedCanvasHost() {
             const runtime = runtimeRef.current;
             if (!runtime) return;
 
+
             try {
               if (runtime.needsReset) {
                 resetCtx();
@@ -290,17 +304,38 @@ export function BlendedCanvasHost() {
               // Handle playback and time calculation
               let normalizedTime: number;
 
-              // Check if timeline time was changed externally (from scrubbing)
-              const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
-              if (timelineChanged && timelineMode) {
-                // Timeline was scrubbed - use timeline time and sync frameIndex
-                isTimelineControlled.current = true;
-                normalizedTime = timelineCurrentTime;
-                frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-                lastTimelineTime.current = timelineCurrentTime;
+              // Handle timeline synchronization FIRST
+              if (timelineMode) {
+                // Check if timeline was manually scrubbed (user interaction)
+                const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
+
+                if (timelineChanged && !runtime.playing) {
+                  // User scrubbed timeline while paused - use timeline time
+                  normalizedTime = timelineCurrentTime;
+                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                  lastTimelineTime.current = timelineCurrentTime;
+                  console.log('Timeline scrubbed to:', normalizedTime, 'frame:', frameIndex);
+                } else if (runtime.playing) {
+                  // Animation is playing - advance frames and update timeline
+                  accumulator += deltaSec;
+                  if (accumulator >= frameDuration) {
+                    const steps = Math.max(1, Math.floor(accumulator / frameDuration));
+                    accumulator -= steps * frameDuration;
+                    frameIndex = (frameIndex + steps) % totalFrames;
+                  }
+                  normalizedTime = frameIndex / totalFrames;
+
+                  // Update timeline to match animation
+                  setCurrentTime(normalizedTime);
+                  lastTimelineTime.current = normalizedTime;
+                  console.log('Timeline updated to:', normalizedTime, 'frame:', frameIndex);
+                } else {
+                  // Paused - use current timeline position
+                  normalizedTime = timelineCurrentTime;
+                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                }
               } else {
-                // Normal playback mode - advance frames when playing
-                isTimelineControlled.current = false;
+                // No timeline mode - normal playback
                 if (runtime.playing) {
                   accumulator += deltaSec;
                   if (accumulator >= frameDuration) {
@@ -309,14 +344,7 @@ export function BlendedCanvasHost() {
                     frameIndex = (frameIndex + steps) % totalFrames;
                   }
                 }
-
                 normalizedTime = frameIndex / totalFrames;
-
-                // In timeline mode, update timeline to match playback position
-                if (timelineMode && !isTimelineControlled.current) {
-                  setCurrentTime(normalizedTime);
-                  lastTimelineTime.current = normalizedTime;
-                }
               }
 
               const ctxColors = computeColors(runtime.background, runtime.invert);
@@ -401,18 +429,26 @@ export function BlendedCanvasHost() {
                   }
                 });
 
-                // Use animated parameters if timeline mode is enabled
-                let effectParams = mainParams; // Use main effect parameters, not layer params
-                if (timelineMode) {
+                // Determine which parameters to use
+                let effectParams = layer.params; // Default to layer's own parameters
+
+                // In timeline mode, check if this layer should use animated main parameters
+                if (timelineMode && layer.effectId === mainEffectId) {
+                  // This layer uses the main effect - apply animated parameters
                   const animatedParams: ParamValues = {};
                   Object.keys(mainParams).forEach(paramKey => {
-                    animatedParams[paramKey] = getAnimatedValue(
+                    const animatedValue = getAnimatedValue(
                       paramKey,
                       normalizedTime,
                       mainParams[paramKey]
                     );
+                    animatedParams[paramKey] = animatedValue;
+                    console.log(`Animating ${paramKey}:`, mainParams[paramKey], '->', animatedValue, 'at time', normalizedTime);
                   });
                   effectParams = animatedParams;
+                } else if (layer.effectId === mainEffectId && !timelineMode) {
+                  // This layer matches main effect and timeline is off, use main parameters
+                  effectParams = mainParams;
                 }
 
                 try {

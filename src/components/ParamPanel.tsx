@@ -6,6 +6,7 @@ import { PresetManager } from "@/components/PresetManager";
 import { ColorControl, Vector2Control, CurveControl, RangeControl } from "@/components/CustomParamControls";
 import { useEditorStore } from "@/store/useEditor";
 import { useTimelineStore } from "@/store/useTimeline";
+import { KeyframeButton } from "@/components/KeyframeButton";
 
 function ParamRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -47,11 +48,13 @@ export function ParamPanel() {
   const effect = getEffect(effectId);
 
   return (
-    <aside className="flex w-full max-w-[320px] flex-col border border-ink bg-paper p-4 text-xs uppercase tracking-[0.12em] lg:h-full">
-      <h2 className="mb-3 border-b border-line pb-2 text-sm font-semibold normal-case">
-        {effect.name}
-      </h2>
-      <div className="flex flex-col gap-3 normal-case">
+    <aside className="flex w-full max-w-[320px] flex-col border border-ink bg-paper text-xs uppercase tracking-[0.12em] h-full overflow-hidden">
+      <div className="border-b border-ink p-4 flex-shrink-0">
+        <h2 className="text-sm font-semibold normal-case">
+          {effect.name}
+        </h2>
+      </div>
+      <div className="flex flex-col gap-3 normal-case p-4 overflow-y-auto flex-1">
         {effect.params.length === 0 && (
           <p className="text-xs uppercase tracking-[0.2em] text-ink opacity-60">
             No parameters for this effect.
@@ -74,7 +77,18 @@ export function ParamPanel() {
                 addKeyframe(key, currentTime, value);
               };
 
-              const isAnimated = paramHasKeyframes; // Only disable if has keyframes, not just timeline mode
+              const isAnimated = paramHasKeyframes;
+              const handleChange = (next: number) => {
+                const value = param.type === "int" ? Math.round(next) : Number(next.toFixed(6));
+                if (timelineMode && isAnimated) {
+                  // Update or add keyframe at current time
+                  addKeyframe(key, currentTime, value);
+                } else {
+                  // Normal parameter update
+                  setParam(key, value);
+                }
+              };
+              
               return (
                 <div key={key} className="flex items-end gap-2">
                   <div className="flex-1">
@@ -85,48 +99,37 @@ export function ParamPanel() {
                       max={param.max}
                       step={param.step}
                       integer={param.type === "int"}
-                      disabled={isAnimated}
-                      onChange={(next) =>
-                        setParam(key, param.type === "int" ? Math.round(next) : Number(next.toFixed(6)))
-                      }
+                      disabled={false}
+                      onChange={handleChange}
                     />
-                    {isAnimated && (
+                    {timelineMode && isAnimated && (
                       <div className="text-xs text-blue-600 mt-1">
-                        Animated (remove keyframes to edit)
+                        Editing keyframe at {(currentTime * 100).toFixed(0)}%
                       </div>
                     )}
                   </div>
-                  {timelineMode && (
-                    <div className="flex flex-col items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={handleAddKeyframe}
-                        className={`w-7 h-7 border text-xs flex items-center justify-center rounded ${
-                          paramHasKeyframes
-                            ? "bg-blue-500 text-white border-blue-500"
-                            : "bg-paper text-blue-500 border-blue-500 hover:bg-blue-500 hover:text-white"
-                        }`}
-                        title={`Add keyframe at ${(currentTime * 100).toFixed(1)}%`}
-                      >
-                        ♦
-                      </button>
-                      {paramHasKeyframes && (
-                        <div className="text-xs text-blue-500 font-mono">
-                          {getKeyframeCount(key)}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <KeyframeButton 
+                    paramKey={key}
+                    value={current}
+                    className="ml-2"
+                  />
                 </div>
               );
             case "boolean":
               return (
-                <ParamRow key={key} label={param.label}>
-                  <BooleanControl
-                    value={Boolean(current)}
-                    onToggle={() => setParam(key, !Boolean(current))}
+                <div key={key} className="flex items-center gap-2">
+                  <ParamRow label={param.label}>
+                    <BooleanControl
+                      value={Boolean(current)}
+                      onToggle={() => setParam(key, !Boolean(current))}
+                    />
+                  </ParamRow>
+                  <KeyframeButton 
+                    paramKey={key}
+                    value={current}
+                    className="mt-4"
                   />
-                </ParamRow>
+                </div>
               );
             case "select":
               return (
@@ -214,8 +217,8 @@ export function ParamPanel() {
               return null;
           }
         })}
+        <PresetManager />
       </div>
-      <PresetManager />
     </aside>
   );
 }

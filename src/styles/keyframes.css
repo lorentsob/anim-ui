@@ -1,0 +1,76 @@
+/* Keyframe Button Styles */
+.keyframe-button {
+  @apply relative flex items-center justify-center w-8 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50 transition-colors;
+}
+
+.keyframe-button.has-keyframe {
+  @apply border-yellow-500 bg-yellow-50;
+}
+
+.keyframe-button.param-animated {
+  @apply border-blue-500;
+}
+
+.keyframe-icon {
+  @apply transition-transform hover:scale-110;
+}
+
+.keyframe-count {
+  @apply absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center;
+}
+
+/* Keyframe Track Styles */
+.keyframe-track {
+  @apply relative h-6 bg-gray-100 rounded border border-gray-200;
+}
+
+.keyframe-track.empty {
+  @apply flex items-center justify-center;
+}
+
+.keyframe-marker {
+  @apply absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 hover:scale-125 transition-transform cursor-pointer;
+}
+
+.keyframe-marker.current {
+  @apply scale-125 z-10;
+}
+
+/* Timeline Panel Styles */
+.timeline-tracks {
+  @apply space-y-2;
+}
+
+.timeline-track-row {
+  @apply flex items-center gap-2;
+}
+
+.timeline-track-label {
+  @apply w-24 text-xs font-medium text-gray-700 truncate;
+}
+
+.timeline-track-content {
+  @apply flex-1;
+}
+
+/* Timeline Scrubber Enhancements */
+.timeline-scrubber {
+  @apply relative;
+}
+
+.timeline-ruler {
+  @apply absolute top-0 left-0 right-0 h-4 border-b border-gray-300;
+}
+
+.timeline-ruler-mark {
+  @apply absolute top-0 w-px h-2 bg-gray-400;
+}
+
+.timeline-playhead {
+  @apply absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none z-20;
+}
+
+.timeline-playhead::before {
+  content: '';
+  @apply absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-red-500;
+}

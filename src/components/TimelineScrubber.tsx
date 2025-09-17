@@ -199,7 +199,7 @@ function FrameMarkers({ totalFrames, duration }: { totalFrames: number; duration
 
 export function PlaybackControls({ className = "" }: { className?: string }) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-
+  
   const { currentTime, setCurrentTime } = useTimelineStore();
   const { durationSec, fps, playing, setPlaying } = useEditorStore();
 
@@ -220,13 +220,13 @@ export function PlaybackControls({ className = "" }: { className?: string }) {
     const totalFrames = durationSec * fps;
     const frameTime = 1 / totalFrames;
     setCurrentTime(Math.min(1, currentTime + frameTime));
-  }, [durationSec, fps, setCurrentTime, currentTime]);
+  }, [durationSec, fps, currentTime, setCurrentTime]);
 
   const stepBackward = useCallback(() => {
     const totalFrames = durationSec * fps;
     const frameTime = 1 / totalFrames;
     setCurrentTime(Math.max(0, currentTime - frameTime));
-  }, [durationSec, fps, setCurrentTime, currentTime]);
+  }, [durationSec, fps, currentTime, setCurrentTime]);
 
 
   return (

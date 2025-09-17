@@ -1,6 +1,6 @@
 # Project Status – BW Animator v1.0 Development
 
-_Last updated: 2025-09-16 22:41 CDT_
+_Last updated: 2025-09-17 15:07 CDT_
 
 ## Overall
 
@@ -30,12 +30,27 @@ _Last updated: 2025-09-16 22:41 CDT_
   - UI updated with new limits and quality feedback
   - All tests passing with comprehensive quality manager coverage
 
+- ✅ **Timeline Integration Crisis Resolution (September 17, 2025)**
+  - **Critical Issue**: Timeline and keyframe system completely non-functional - keyframes weren't affecting viewport
+  - **Root Cause**: BlendedCanvasHost using wrong parameter source (layer.params vs mainParams)
+  - **Timeline Playback Issue**: Conflicting timeline synchronization causing animation to stick at first frame
+  - **Parameter Lock Issue**: All parameters incorrectly disabled when timeline mode enabled
+  - **Comprehensive Fix**: Complete timeline integration overhaul affecting 5+ core files
+    - Fixed BlendedCanvasHost parameter routing (`layer.params` → `mainParams`)
+    - Implemented smart timeline scrubbing detection vs normal playback
+    - Unified timeline controls with main canvas playback state
+    - Added proper NumericField disabled state support
+    - Enhanced keyframe creation UI with visual feedback
+    - Synchronized timeline logic between CanvasHost and BlendedCanvasHost
+  - **Result**: Full keyframe animation pipeline now operational from timeline to viewport
+  - **Impact**: Restored core v1.0 timeline functionality, unblocking advanced animation features
+
 ## v1.0 Development Phase
 
-**Status**: Week 2 Foundation Complete - Timeline System Operational
+**Status**: Timeline Integration Complete - Full Keyframe Animation System Operational
 **Target**: Q1 2025 production release
-**Current Phase**: Timeline & Advanced Animation (Weeks 2-5)
-**Next Milestone**: Timeline UI panel and visual scrubbing (Week 3)
+**Current Phase**: Timeline & Advanced Animation (Weeks 2-5) - Critical Integration Issues Resolved
+**Next Milestone**: Advanced Timeline Features & Effect Blending Optimization
 
 **Focus Areas**:
 
