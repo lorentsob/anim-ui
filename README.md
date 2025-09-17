@@ -1,209 +1,130 @@
 # Pixel Animator
 
-**AI-Powered Generative Animation Studio**
+**Visual Interface for Generative Animations**
 
-Create stunning black and white generative animations with real-time parameter controls and seamless sharing capabilities. This project showcases the power of AI-assisted development, built entirely through collaboration between human creativity and AI technical implementation.
+A web-based tool for creating black and white generative animations without writing code. Built to provide a simple interface for exploring p5.js-style creative coding concepts through visual controls rather than programming.
 
-## 🚀 Live Demo
+## 🎯 Purpose
 
-**[Try Pixel Animator Live](https://your-deployment-url.vercel.app)**
+This project was created to solve a specific need: **generating p5.js-style animations without writing code**. Instead of manually coding animation loops, mathematical functions, and parameter adjustments, this tool provides a visual interface where you can:
 
-Experience the magic of generative art - no installation required!
+- Select from pre-built animation algorithms
+- Adjust parameters through sliders and controls
+- See results in real-time
+- Share configurations with others
 
-## 🎯 Project Overview
+The entire application was built through AI collaboration, demonstrating how AI can help create functional creative tools quickly and efficiently.
 
-Pixel Animator is a web-based animation tool that demonstrates how AI can accelerate creative software development. Every line of code, every component, and every feature was implemented through AI collaboration, showcasing modern development workflows and the potential of human-AI partnership in software creation.
+## ✨ What It Does
 
-### 🤖 AI Development Showcase
+### Core Functionality
+- **11 Animation Effects**: Pre-built algorithms covering geometric patterns, organic movements, and retro aesthetics
+- **Real-Time Parameter Control**: Adjust speed, size, density, and other properties with immediate visual feedback
+- **Deterministic Generation**: Seed-based system ensures the same settings always produce the same animation
+- **Preset Management**: Save and load parameter configurations
+- **Sharing**: Generate URLs to share specific animation settings
 
-This project exemplifies:
-- **AI-Driven Development**: Complete application built through AI collaboration
-- **Rapid Prototyping**: From concept to working application in record time
-- **Intelligent Problem Solving**: AI handling complex technical challenges
-- **Human-AI Collaboration**: Creative vision guided by human input, technical execution by AI
+### Available Effects
+- **Square Drift**: Floating geometric shapes
+- **ASCII Dither**: Text-based visual patterns
+- **Cellular Automata**: Rule-based emerging patterns
+- **Orbiting Bars**: Rotating geometric elements
+- **Ripple Quantized**: Wave distortion effects
+- **Scanline Reveal**: Progressive line-based reveals
+- **Grid**: Structured geometric layouts
+- **Particle**: Physics-based particle movement
+- **Geometric**: Mathematical shape arrangements
+- **Typographic**: Text-based animations
+- **Custom Demo**: Advanced parameter showcase
 
-## ✨ Features
+## 🛠️ Technical Details
 
-### 🎨 **Creative Studio**
-- **11 Unique Effects**: Curated collection of generative animation algorithms
-- **Real-Time Preview**: Instant visual feedback as you adjust parameters
-- **Deterministic Generation**: Seed-based system ensures reproducible results
-- **Intuitive Controls**: User-friendly interface for all skill levels
+### Technology Stack
+- **Next.js 15**: React framework with TypeScript
+- **p5.js**: Creative coding library for canvas rendering
+- **Tailwind CSS v4**: Utility-first styling
+- **Zustand**: State management
 
-### 🎛️ **Advanced Parameter System**
-- **Dynamic Controls**: Sliders, color pickers, vector inputs, and range controls
-- **Live Animation**: Watch your changes come to life instantly
-- **Preset Management**: Save and share your favorite configurations
-- **Smart Validation**: Automatic parameter bounds and error handling
-
-### 🔗 **Collaboration & Sharing**
-- **Instant Sharing**: One-click link generation for easy collaboration
-- **Preset System**: Save, load, and organize your creative configurations
-- **Cross-Platform**: Works seamlessly across desktop and mobile devices
-
-## 🎪 Effect Gallery
-
-### **Geometric Collection**
-- **Square Drift**: Floating geometric patterns with physics-based movement
-- **Grid**: Structured geometric patterns with customizable density
-- **Geometric**: Clean mathematical shapes and forms
-
-### **Organic Patterns**
-- **Cellular Automata**: Complex emerging patterns from simple rules
-- **Particle**: Dynamic particle systems with natural movement
-- **Ripple Quantized**: Wave-like distortions and fluid dynamics
-
-### **Retro & Digital**
-- **ASCII Dither**: Text-based visual effects with vintage computer aesthetics
-- **Scanline Reveal**: Retro scanning effects and progressive reveals
-- **Orbiting Bars**: Rotating geometric elements with customizable orbits
-
-### **Experimental**
-- **Typographic**: Text-based animations with dynamic layouts
-- **Custom Demo**: Showcase of advanced parameter types and interactions
-
-## 🛠️ Technical Architecture
-
-### **Modern Web Stack**
-- **Next.js 15**: React framework with App Router and server components
-- **TypeScript**: Full type safety and developer experience
-- **Tailwind CSS v4**: Utility-first styling with modern design system
-- **p5.js**: Creative coding library for generative graphics
-
-### **Advanced Features**
-- **Deterministic RNG**: Seed-based random number generation for reproducible results
-- **Real-Time Rendering**: Optimized animation loops with 60fps performance
-- **Responsive Design**: Adaptive layout for all screen sizes
-- **Error Boundaries**: Graceful error handling and recovery
-
-### **Performance Optimizations**
-- **Efficient Rendering**: Canvas optimization for smooth animations
-- **Memory Management**: Proper cleanup and resource management
-- **Code Splitting**: Optimized bundle sizes for fast loading
+### Key Features
+- Seed-based random number generation for reproducible results
+- Custom parameter types (sliders, color pickers, vector controls)
+- Real-time canvas rendering optimized for smooth playback
+- Responsive design that works on desktop and mobile
+- URL-based sharing system
 
 ## 🚀 Getting Started
 
-### **Quick Start**
+### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pixel-animator.git
+git clone https://github.com/lorentsob/anim-ui.git
 
 # Install dependencies
-cd pixel-animator
+cd anim-ui
 npm install
 
 # Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000/editor](http://localhost:3000/editor) to start creating!
+Open [http://localhost:3000/editor](http://localhost:3000/editor) to use the tool.
 
-### **Production Build**
-```bash
-# Build for production
-npm run build
+### Usage
+1. **Choose an effect** from the dropdown menu
+2. **Adjust parameters** using the controls in the right panel
+3. **Try different seeds** using the "Random Seed" button for variations
+4. **Save presets** to remember configurations you like
+5. **Share** by copying the URL which includes your current settings
 
-# Start production server
-npm run start
-```
+## 🎨 Use Cases
 
-### **Development Commands**
-```bash
-npm run dev      # Start development server
-npm run build    # Production build
-npm run start    # Run production server
-npm run test     # Run test suite
-```
+This tool is useful for:
+- **Creative exploration** without needing to code
+- **Rapid prototyping** of animation concepts
+- **Learning** generative art principles through hands-on experimentation
+- **Creating** simple animations for presentations or social media
+- **Understanding** how parameters affect visual output
 
-## 🎯 Use Cases
+## 🤖 AI Development
 
-### **Creative Applications**
-- **Digital Art**: Create unique generative art pieces
-- **Social Media Content**: Eye-catching animations for posts and stories
-- **Website Graphics**: Dynamic backgrounds and visual elements
-- **Presentation Design**: Engaging visuals for presentations
+This project demonstrates practical AI-assisted development:
 
-### **Educational & Professional**
-- **Generative Art Education**: Learn principles of algorithmic art
-- **Creative Coding**: Explore the intersection of code and creativity
-- **Design Prototyping**: Rapid visual concept development
-- **Portfolio Showcase**: Demonstrate technical and creative skills
+### Development Approach
+- **Human direction**: Defined the goal and user experience requirements
+- **AI implementation**: Built components, logic, and interfaces
+- **Iterative refinement**: Made adjustments based on testing and feedback
 
-## 🎨 Creative Workflow
+### Benefits Demonstrated
+- **Rapid prototyping**: From concept to working tool in a short timeframe
+- **Technical problem-solving**: AI handled complex canvas rendering and state management
+- **Code quality**: Consistent TypeScript implementation with proper error handling
 
-### **1. Explore & Discover**
-- Browse the effect gallery and find inspiration
-- Experiment with different parameter combinations
-- Use the random seed generator for unexpected results
+## 📊 Project Stats
 
-### **2. Customize & Refine**
-- Adjust parameters to match your vision
-- Fine-tune timing, colors, and movement
-- Save promising configurations as presets
-
-### **3. Share & Collaborate**
-- Generate shareable links for your creations
-- Build a library of reusable presets
-- Inspire others with your unique combinations
-
-## 🏗️ AI Development Process
-
-This project demonstrates advanced AI-assisted development:
-
-### **Collaborative Planning**
-- Human creative vision and requirements
-- AI technical planning and architecture decisions
-- Iterative refinement and feature development
-
-### **Intelligent Implementation**
-- AI-generated component architecture
-- Automated problem-solving for complex technical challenges
-- Real-time debugging and optimization
-
-### **Quality Assurance**
-- AI-driven testing and validation
-- Performance optimization and code review
-- User experience refinement and polish
-
-## 📊 Project Metrics
-
-- **11** Unique generative effects
-- **100%** TypeScript coverage
-- **0** Runtime dependencies on external APIs
-- **< 150KB** Total bundle size
-- **60fps** Smooth animation performance
+- **11** animation algorithms
+- **~150KB** total bundle size
+- **TypeScript** throughout for type safety
+- **Zero external API dependencies**
+- **Responsive** design for mobile and desktop
 
 ## 🤝 Contributing
 
-This project showcases AI-assisted development. Contributions are welcome!
+The codebase is well-structured for additional effects or UI improvements:
 
-### **Development Setup**
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-### **Guidelines**
-- Follow TypeScript best practices
-- Maintain consistent code style
-- Add tests for new features
-- Update documentation as needed
+1. **Adding effects**: Create new files in `src/effects/` following the existing pattern
+2. **UI improvements**: Components are modular and use consistent styling
+3. **Parameter types**: Custom controls can be extended in `src/components/CustomParamControls.tsx`
 
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## 📝 Notes
 
-### **Created by Lorenzo Boschi**
-*Showcasing the future of AI-assisted creative development*
+This tool bridges the gap between visual creativity and technical implementation. Instead of learning p5.js syntax and animation programming, users can focus on exploring visual concepts through direct manipulation of parameters.
 
-### **Powered by AI Collaboration**
-This project demonstrates the incredible potential of human-AI partnership in software development, where creative vision meets technical precision.
+The project shows how AI can help create specialized creative tools that serve specific workflows - in this case, making generative animation accessible without requiring programming knowledge.
 
 ---
 
-**🚀 Ready to create? [Start animating now!](https://your-deployment-url.vercel.app)**
-
-*Built with ❤️ through AI collaboration | Showcasing the future of creative technology*
+**Created by Lorenzo Boschi** | Built with AI assistance to demonstrate practical creative tool development
