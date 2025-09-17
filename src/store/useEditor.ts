@@ -1,0 +1,149 @@
+"use client";
+
+import { create } from "zustand";
+import { effects, getEffect } from "@/effects";
+import type { ParamValues } from "@/effects/types";
+import { generateSeed } from "@/lib/rng";
+import type { StoredState } from "@/lib/storage";
+
+export type Background = "white" | "black";
+
+type EditorState = {
+  effectId: string;
+  params: ParamValues;
+  width: number;
+  height: number;
+  fps: number;
+  durationSec: number;
+  seed: string;
+  background: Background;
+  invert: boolean;
+  qualityMode: "preview" | "render";
+  enableWarnings: boolean;
+  playing: boolean;
+  currentFrame: number;
+  setSize: (width: number, height: number) => void;
+  setFps: (fps: number) => void;
+  setDuration: (seconds: number) => void;
+  setEffectId: (id: string) => void;
+  setParam: (key: string, value: number | string | boolean) => void;
+  setPlaying: (playing: boolean) => void;
+  togglePlaying: () => void;
+  setSeed: (seed: string) => void;
+  randomizeSeed: () => void;
+  setBackground: (value: Background) => void;
+  toggleInvert: () => void;
+  setQualityMode: (mode: "preview" | "render") => void;
+  toggleWarnings: () => void;
+  setCurrentFrame: (frame: number) => void;
+  loadFromStoredState: (snapshot: StoredState) => void;
+};
+
+const initialEffect = effects[0];
+
+const sanitizeDimension = (value: number, fallback: number) => {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.round(Math.max(32, Math.min(2048, value)));
+};
+
+const sanitizeFps = (value: number, fallback: number) => {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.max(1, Math.min(30, Math.round(value)));
+};
+
+const sanitizeDuration = (value: number, fallback: number) => {
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.max(1, Math.min(30, Math.round(value)));
+};
+
+export const useEditorStore = create<EditorState>((set, get) => ({
+  effectId: initialEffect.id,
+  params: { ...initialEffect.defaults },
+  width: 640,
+  height: 640,
+  fps: 12,
+  durationSec: 6,
+  seed: generateSeed(),
+  background: "white",
+  invert: false,
+  qualityMode: "preview",
+  enableWarnings: true,
+  playing: true,
+  currentFrame: 0,
+  setSize: (width, height) => {
+    set({
+      width: sanitizeDimension(width, get().width),
+      height: sanitizeDimension(height, get().height),
+    });
+  },
+  setFps: (fps) => {
+    set({ fps: sanitizeFps(fps, get().fps) });
+  },
+  setDuration: (seconds) => {
+    set({ durationSec: sanitizeDuration(seconds, get().durationSec) });
+  },
+  setEffectId: (id) => {
+    const effect = getEffect(id);
+    set({
+      effectId: effect.id,
+      params: { ...effect.defaults },
+      currentFrame: 0,
+    });
+  },
+  setParam: (key, value) => {
+    set((state) => ({
+      params: {
+        ...state.params,
+        [key]: value,
+      },
+    }));
+  },
+  setPlaying: (playing) => set({ playing }),
+  togglePlaying: () => set((state) => ({ playing: !state.playing })),
+  setSeed: (seed) => {
+    set({ seed: seed.toUpperCase().trim() || generateSeed(), currentFrame: 0 });
+  },
+  randomizeSeed: () => {
+    set({ seed: generateSeed(), currentFrame: 0 });
+  },
+  setBackground: (value) => set({ background: value }),
+  toggleInvert: () => set((state) => ({ invert: !state.invert })),
+  setQualityMode: (mode) => set({ qualityMode: mode }),
+  toggleWarnings: () => set((state) => ({ enableWarnings: !state.enableWarnings })),
+  setCurrentFrame: (frame) => set({ currentFrame: frame }),
+  loadFromStoredState: (snapshot) => {
+    const effect = getEffect(snapshot.effectId);
+    const mergedParams: ParamValues = {
+      ...effect.defaults,
+      ...(snapshot.params as ParamValues),
+    };
+    set({
+      effectId: effect.id,
+      params: mergedParams,
+      width: sanitizeDimension(snapshot.width, 640),
+      height: sanitizeDimension(snapshot.height, 640),
+      fps: sanitizeFps(snapshot.fps, 12),
+      durationSec: sanitizeDuration(snapshot.durationSec, 6),
+      seed: snapshot.seed?.toUpperCase?.() ?? generateSeed(),
+      background: snapshot.background,
+      invert: snapshot.invert,
+      currentFrame: 0,
+      playing: false,
+    });
+  },
+}));
+
+export const getStoredStateSnapshot = (): StoredState => {
+  const state = useEditorStore.getState();
+  return {
+    effectId: state.effectId,
+    params: { ...state.params },
+    width: state.width,
+    height: state.height,
+    fps: state.fps,
+    durationSec: state.durationSec,
+    seed: state.seed,
+    background: state.background,
+    invert: state.invert,
+  };
+};
