@@ -4,9 +4,9 @@ import "./globals.css";
 import { NotificationTray } from "@/components/NotificationTray";
 
 export const metadata: Metadata = {
-  title: "BW Animator",
+  title: "Pixel Animator",
   description:
-    "Early-2000s monochrome animation editor powered by Next.js and p5.js.",
+    "Create stunning black and white generative animations with artistic effects and seamless export capabilities.",
 };
 
 export default function RootLayout({

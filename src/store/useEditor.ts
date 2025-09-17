@@ -5,7 +5,6 @@ import { effects, getEffect } from "@/effects";
 import type { ParamValues, ParamValue } from "@/effects/types";
 import { generateSeed } from "@/lib/rng";
 import type { StoredState } from "@/lib/storage";
-import { calculateOptimalSettings, type QualitySettings } from "@/lib/qualityManager";
 
 export type Background = "white" | "black";
 
@@ -19,9 +18,6 @@ type EditorState = {
   seed: string;
   background: Background;
   invert: boolean;
-  qualityMode: "preview" | "render";
-  qualitySettings: QualitySettings;
-  timelineMode: boolean;
   enableWarnings: boolean;
   playing: boolean;
   currentFrame: number;
@@ -36,11 +32,6 @@ type EditorState = {
   randomizeSeed: () => void;
   setBackground: (value: Background) => void;
   toggleInvert: () => void;
-  setQualityMode: (mode: "preview" | "render") => void;
-  setQualitySettings: (settings: Partial<QualitySettings>) => void;
-  updateQualityForComplexity: () => void;
-  setTimelineMode: (enabled: boolean) => void;
-  toggleTimelineMode: () => void;
   toggleWarnings: () => void;
   setCurrentFrame: (frame: number) => void;
   loadFromStoredState: (snapshot: StoredState) => void;
@@ -73,30 +64,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   seed: generateSeed(),
   background: "white",
   invert: false,
-  qualityMode: "preview",
-  qualitySettings: calculateOptimalSettings(640, 640, 12),
-  timelineMode: false,
   enableWarnings: true,
   playing: true,
   currentFrame: 0,
   setSize: (width, height) => {
     const newWidth = sanitizeDimension(width, get().width);
     const newHeight = sanitizeDimension(height, get().height);
-    const fps = get().fps;
 
     set({
       width: newWidth,
       height: newHeight,
-      qualitySettings: calculateOptimalSettings(newWidth, newHeight, fps),
     });
   },
   setFps: (fps) => {
     const newFps = sanitizeFps(fps, get().fps);
-    const { width, height } = get();
 
     set({
       fps: newFps,
-      qualitySettings: calculateOptimalSettings(width, height, newFps),
     });
   },
   setDuration: (seconds) => {
@@ -128,16 +112,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setBackground: (value) => set({ background: value }),
   toggleInvert: () => set((state) => ({ invert: !state.invert })),
-  setQualityMode: (mode) => set({ qualityMode: mode }),
-  setQualitySettings: (settings) => set((state) => ({
-    qualitySettings: { ...state.qualitySettings, ...settings }
-  })),
-  updateQualityForComplexity: () => {
-    const { width, height, fps } = get();
-    set({ qualitySettings: calculateOptimalSettings(width, height, fps) });
-  },
-  setTimelineMode: (enabled) => set({ timelineMode: enabled }),
-  toggleTimelineMode: () => set((state) => ({ timelineMode: !state.timelineMode })),
   toggleWarnings: () => set((state) => ({ enableWarnings: !state.enableWarnings })),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
   loadFromStoredState: (snapshot) => {
@@ -160,7 +134,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       seed: snapshot.seed?.toUpperCase?.() ?? generateSeed(),
       background: snapshot.background,
       invert: snapshot.invert,
-      qualitySettings: calculateOptimalSettings(width, height, fps),
       currentFrame: 0,
       playing: false,
     });

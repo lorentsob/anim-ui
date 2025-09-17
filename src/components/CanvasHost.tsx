@@ -9,7 +9,6 @@ import { AppError, createCanvasError, createAnimationError, safeOperation, error
 import { createRng, hashSeed } from "@/lib/rng";
 import { useEditorStore, type Background } from "@/store/useEditor";
 import { useNotificationStore } from "@/store/useNotifications";
-import { useTimelineStore } from "@/store/useTimeline";
 
 type RuntimeData = {
   width: number;
@@ -22,7 +21,6 @@ type RuntimeData = {
   seed: string;
   background: Background;
   invert: boolean;
-  qualityMode: "preview" | "render";
   needsReset: boolean;
 };
 
@@ -43,7 +41,6 @@ const DEFAULT_RUNTIME: RuntimeData = {
   seed: "",
   background: "white",
   invert: false,
-  qualityMode: "preview",
   needsReset: true,
 };
 
@@ -73,16 +70,8 @@ export function CanvasHost() {
   const seed = useEditorStore((state) => state.seed);
   const background = useEditorStore((state) => state.background);
   const invert = useEditorStore((state) => state.invert);
-  const qualityMode = useEditorStore((state) => state.qualityMode);
-  const timelineMode = useEditorStore((state) => state.timelineMode);
   const setCurrentFrame = useEditorStore((state) => state.setCurrentFrame);
   const addNotification = useNotificationStore((state) => state.addNotification);
-  const getAnimatedValue = useTimelineStore((state) => state.getAnimatedValue);
-  const setCurrentTime = useTimelineStore((state) => state.setCurrentTime);
-  const timelineCurrentTime = useTimelineStore((state) => state.currentTime);
-
-  // Track timeline time for change detection
-  const lastTimelineTime = useRef<number>(0);
 
   useEffect(() => {
     runtimeRef.current.width = width;
@@ -127,11 +116,6 @@ export function CanvasHost() {
     runtimeRef.current.invert = invert;
     runtimeRef.current.needsReset = true;
   }, [invert]);
-
-  useEffect(() => {
-    runtimeRef.current.qualityMode = qualityMode;
-    runtimeRef.current.needsReset = true;
-  }, [qualityMode]);
 
   useEffect(() => {
     let mounted = true;
@@ -230,57 +214,20 @@ export function CanvasHost() {
             const deltaSec = (now - lastTime) / 1000;
             lastTime = now;
 
-            const targetFps = Math.max(
-              1,
-              runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
-            );
+            const targetFps = Math.max(1, runtime.fps);
             const totalFrames = Math.max(1, Math.round(runtime.durationSec * targetFps));
             const frameDuration = 1 / targetFps;
 
-            // Handle timeline synchronization FIRST
-            let normalizedTime: number;
-
-            if (timelineMode) {
-              // Check if timeline was manually scrubbed (user interaction)
-              const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
-
-              if (timelineChanged && !runtime.playing) {
-                // User scrubbed timeline while paused - use timeline time
-                normalizedTime = timelineCurrentTime;
-                frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-                lastTimelineTime.current = timelineCurrentTime;
-                console.log('CanvasHost: Timeline scrubbed to:', normalizedTime, 'frame:', frameIndex);
-              } else if (runtime.playing) {
-                // Animation is playing - advance frames and update timeline
-                accumulator += deltaSec;
-                if (accumulator >= frameDuration) {
-                  const steps = Math.max(1, Math.floor(accumulator / frameDuration));
-                  accumulator -= steps * frameDuration;
-                  frameIndex = (frameIndex + steps) % totalFrames;
-                }
-                normalizedTime = frameIndex / totalFrames;
-
-                // Update timeline to match animation
-                setCurrentTime(normalizedTime);
-                lastTimelineTime.current = normalizedTime;
-                console.log('CanvasHost: Timeline updated to:', normalizedTime, 'frame:', frameIndex);
-              } else {
-                // Paused - use current timeline position
-                normalizedTime = timelineCurrentTime;
-                frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+            // Simple animation playback
+            if (runtime.playing) {
+              accumulator += deltaSec;
+              if (accumulator >= frameDuration) {
+                const steps = Math.max(1, Math.floor(accumulator / frameDuration));
+                accumulator -= steps * frameDuration;
+                frameIndex = (frameIndex + steps) % totalFrames;
               }
-            } else {
-              // No timeline mode - normal playback
-              if (runtime.playing) {
-                accumulator += deltaSec;
-                if (accumulator >= frameDuration) {
-                  const steps = Math.max(1, Math.floor(accumulator / frameDuration));
-                  accumulator -= steps * frameDuration;
-                  frameIndex = (frameIndex + steps) % totalFrames;
-                }
-              }
-              normalizedTime = frameIndex / totalFrames;
             }
+            const normalizedTime = frameIndex / totalFrames;
 
             const ctxColors = computeColors(runtime.background, runtime.invert);
             const ctxSeed = `${effectCtxRef.current.baseSeed}-frame-${frameIndex}`;
@@ -291,21 +238,8 @@ export function CanvasHost() {
               colors: ctxColors,
             };
 
-            // Use animated parameters if timeline mode is enabled
-            let effectParams = runtime.params;
-            if (timelineMode) {
-              const animatedParams: ParamValues = {};
-              Object.keys(runtime.params).forEach(paramKey => {
-                const animatedValue = getAnimatedValue(
-                  paramKey,
-                  normalizedTime,
-                  runtime.params[paramKey]
-                );
-                animatedParams[paramKey] = animatedValue;
-                console.log(`CanvasHost: Animating ${paramKey}:`, runtime.params[paramKey], '->', animatedValue, 'at time', normalizedTime);
-              });
-              effectParams = animatedParams;
-            }
+            // Use static parameters
+            const effectParams = runtime.params;
 
             p.background(ctxColors.paper);
             currentEffect.update(p, ctx, frameIndex / targetFps, frameIndex, effectParams);
@@ -320,10 +254,7 @@ export function CanvasHost() {
             const appError = createAnimationError("animation-render", error as Error, {
               effectId: runtime.effectId,
               frameIndex,
-              targetFps: Math.max(
-                1,
-                runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
-              )
+              targetFps: Math.max(1, runtime.fps)
             });
             errorManager.handleError(appError);
 

@@ -3,53 +3,16 @@
 import { useEffect } from "react";
 
 import { CanvasHost } from "@/components/CanvasHost";
-import { BlendedCanvasHost } from "@/components/BlendedCanvasHost";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import LayerPanel from "@/components/LayerPanel";
 import { ParamPanel } from "@/components/ParamPanel";
-import { RecorderBar } from "@/components/RecorderBar";
 import { StatusBar } from "@/components/StatusBar";
-import TimelinePanel from "@/components/TimelinePanel";
 import { TopBar } from "@/components/TopBar";
 import { decodeEditorState, STATE_PARAM } from "@/lib/shareUrls";
 import { useEditorStore } from "@/store/useEditor";
-import { useBlendingStore } from "@/store/useBlending";
 
-function TimelineControls() {
-  const timelineMode = useEditorStore((state) => state.timelineMode);
-  const toggleTimelineMode = useEditorStore((state) => state.toggleTimelineMode);
-
-  return (
-    <div className="flex flex-col gap-2">
-      {/* Timeline toggle */}
-      <div className="flex items-center justify-between border border-ink bg-paper px-4 py-2">
-        <span className="text-xs uppercase tracking-[0.18em] text-ink opacity-80">
-          Timeline Animation
-        </span>
-        <button
-          type="button"
-          onClick={toggleTimelineMode}
-          className={`border border-ink px-3 py-1 text-xs uppercase tracking-[0.08em] ${
-            timelineMode ? "bg-ink text-paper" : "bg-paper hover:bg-ink hover:text-paper"
-          }`}
-        >
-          {timelineMode ? "ON" : "OFF"}
-        </button>
-      </div>
-
-      {/* Timeline panel */}
-      {timelineMode && (
-        <ErrorBoundary>
-          <TimelinePanel isVisible={timelineMode} />
-        </ErrorBoundary>
-      )}
-    </div>
-  );
-}
 
 export default function EditorPage() {
   const loadFromStoredState = useEditorStore((state) => state.loadFromStoredState);
-  const blendingEnabled = useBlendingStore((state) => state.blendingEnabled);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -78,19 +41,12 @@ export default function EditorPage() {
                 {/* Canvas viewport */}
                 <div className="flex items-center justify-center border border-ink bg-paper p-4">
                   <div className="flex max-h-full max-w-full items-center justify-center border border-dashed border-ink bg-paper p-4">
-                    <ErrorBoundary resetKeys={[blendingEnabled ? "blending" : "normal"]}>
-                      {blendingEnabled ? <BlendedCanvasHost /> : <CanvasHost />}
+                    <ErrorBoundary>
+                      <CanvasHost />
                     </ErrorBoundary>
                   </div>
                 </div>
 
-                {/* Timeline controls and panel */}
-                <TimelineControls />
-
-                {/* Export bar */}
-                <ErrorBoundary>
-                  <RecorderBar />
-                </ErrorBoundary>
               </div>
             </div>
 
@@ -100,11 +56,6 @@ export default function EditorPage() {
                 <ErrorBoundary>
                   <ParamPanel />
                 </ErrorBoundary>
-                {blendingEnabled && (
-                  <ErrorBoundary>
-                    <LayerPanel />
-                  </ErrorBoundary>
-                )}
               </div>
             </div>
           </div>

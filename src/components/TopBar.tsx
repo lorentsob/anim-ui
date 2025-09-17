@@ -7,7 +7,6 @@ import { effects } from "@/effects";
 import { createShareUrl } from "@/lib/shareUrls";
 import { useNotificationStore } from "@/store/useNotifications";
 import { useEditorStore } from "@/store/useEditor";
-import { useBlendingStore } from "@/store/useBlending";
 
 function SectionLabel({ label }: { label: string }) {
   return (
@@ -36,15 +35,9 @@ export function TopBar() {
   const setBackground = useEditorStore((state) => state.setBackground);
   const invert = useEditorStore((state) => state.invert);
   const toggleInvert = useEditorStore((state) => state.toggleInvert);
-  const qualityMode = useEditorStore((state) => state.qualityMode);
-  const setQualityMode = useEditorStore((state) => state.setQualityMode);
-  const timelineMode = useEditorStore((state) => state.timelineMode);
-  const toggleTimelineMode = useEditorStore((state) => state.toggleTimelineMode);
   const addNotification = useNotificationStore((state) => state.addNotification);
   const [shareBusy, setShareBusy] = useState(false);
 
-  const blendingEnabled = useBlendingStore((state) => state.blendingEnabled);
-  const toggleBlending = useBlendingStore((state) => state.toggleBlending);
 
   const handleShare = async () => {
     try {
@@ -67,21 +60,31 @@ export function TopBar() {
   return (
     <header className="flex flex-col gap-3 border border-ink bg-paper px-4 py-3 uppercase tracking-[0.08em] shadow-[inset_0_0_0_1px_#000]">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-sm font-semibold">BW Animator · MVP Prototype</span>
+        <span className="text-sm font-semibold">Pixel Animator</span>
         <div className="flex items-center gap-2 text-xs">
           <button
             type="button"
-            className="border border-ink bg-paper px-3 py-1 font-semibold hover:bg-ink hover:text-paper"
+            className="border border-ink bg-paper px-3 py-2 font-semibold hover:bg-ink hover:text-paper"
             onClick={togglePlaying}
           >
             {playing ? "Pause" : "Play"}
           </button>
           <button
             type="button"
-            className="border border-ink bg-paper px-3 py-1 hover:bg-ink hover:text-paper"
+            className="border border-ink bg-paper px-3 py-2 hover:bg-ink hover:text-paper"
             onClick={randomizeSeed}
           >
             Random Seed
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={shareBusy}
+            className={`border border-ink bg-paper px-3 py-2 ${
+              shareBusy ? "opacity-60" : "hover:bg-ink hover:text-paper"
+            }`}
+          >
+            {shareBusy ? "Copying..." : "Share"}
           </button>
         </div>
       </div>
@@ -195,57 +198,8 @@ export function TopBar() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <SectionLabel label="Quality" />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setQualityMode("preview")}
-              className={`border border-ink px-3 py-2 text-xs ${
-                qualityMode === "preview" ? "bg-ink text-paper" : "bg-paper"
-              }`}
-            >
-              Preview
-            </button>
-            <button
-              type="button"
-              onClick={() => setQualityMode("render")}
-              className={`border border-ink px-3 py-2 text-xs ${
-                qualityMode === "render" ? "bg-ink text-paper" : "bg-paper"
-              }`}
-            >
-              Render
-            </button>
-          </div>
-        </div>
 
 
-        <div className="flex flex-col gap-1">
-          <SectionLabel label="Blending" />
-          <button
-            type="button"
-            onClick={toggleBlending}
-            className={`border border-ink px-3 py-2 text-xs ${
-              blendingEnabled ? "bg-ink text-paper" : "bg-paper hover:bg-ink hover:text-paper"
-            }`}
-          >
-            {blendingEnabled ? "ON" : "OFF"}
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <SectionLabel label="Share" />
-          <button
-            type="button"
-            onClick={handleShare}
-            disabled={shareBusy}
-            className={`border border-ink px-3 py-2 text-xs ${
-              shareBusy ? "opacity-60" : "hover:bg-ink hover:text-paper"
-            }`}
-          >
-            {shareBusy ? "Copying" : "Copy Link"}
-          </button>
-        </div>
       </div>
     </header>
   );

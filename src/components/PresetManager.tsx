@@ -46,19 +46,19 @@ export function PresetManager() {
 
   return (
     <div className="mt-4 border border-ink bg-paper p-3 uppercase">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold tracking-[0.2em]">Presets</h3>
+      <div className="mb-3">
+        <h3 className="text-xs font-semibold tracking-[0.2em] mb-2">Presets</h3>
         <div className="flex items-center gap-2">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Preset name"
-            className="w-[160px] border border-ink bg-paper px-2 py-1 text-xs tracking-normal normal-case"
+            className="flex-1 border border-ink bg-paper px-2 py-1 text-xs tracking-normal normal-case"
           />
           <button
             type="button"
             onClick={handleSave}
-            className="border border-ink px-3 py-1 text-xs hover:bg-ink hover:text-paper"
+            className="border border-ink px-3 py-1 text-xs hover:bg-ink hover:text-paper flex-shrink-0"
           >
             Save
           </button>
@@ -67,23 +67,24 @@ export function PresetManager() {
       {presets.length === 0 ? (
         <p className="text-[11px] uppercase tracking-[0.2em] opacity-60">No presets saved yet.</p>
       ) : (
-        <ul className="flex max-h-[200px] flex-col gap-2 overflow-y-auto text-xs normal-case">
+        <ul className="flex max-h-[200px] flex-col gap-1 overflow-y-auto text-xs normal-case">
           {presets.map((preset) => (
-            <li key={preset.id} className="flex items-center gap-2 border border-ink px-2 py-1">
+            <li key={preset.id} className="flex items-center gap-2 border border-ink px-3 py-2">
               <button
                 type="button"
                 onClick={() => handleApply(preset)}
-                className="flex-1 text-left uppercase tracking-[0.18em] hover:underline"
+                className="flex-1 min-w-0 text-left uppercase tracking-[0.18em] hover:underline truncate"
+                title={preset.name}
               >
                 {preset.name}
               </button>
-              <span className="text-[10px] uppercase tracking-[0.2em] opacity-70">
+              <span className="text-[10px] uppercase tracking-[0.2em] opacity-70 flex-shrink-0 w-[50px] text-right">
                 {new Date(preset.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
               <button
                 type="button"
                 onClick={() => handleDelete(preset)}
-                className="border border-ink px-2 py-1 text-[10px] uppercase hover:bg-alert hover:text-paper"
+                className="border border-ink px-3 py-1 text-[10px] uppercase hover:bg-alert hover:text-paper flex-shrink-0"
               >
                 Delete
               </button>
