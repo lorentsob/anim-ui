@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { NotificationTray } from "@/components/NotificationTray";
 
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body className="bg-paper text-ink font-mono antialiased">
         {children}
         <NotificationTray />
+        <Analytics />
       </body>
     </html>
   );
