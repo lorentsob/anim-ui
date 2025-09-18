@@ -24,7 +24,9 @@ export function StatusBar() {
   const effectId = useEditorStore((state) => state.effectId);
   const width = useEditorStore((state) => state.width);
   const height = useEditorStore((state) => state.height);
-  const toggleNotificationPanel = useNotificationStore((state) => state.togglePanel);
+  const toggleNotificationPanel = useNotificationStore(
+    (state) => state.togglePanel
+  );
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -39,17 +41,13 @@ export function StatusBar() {
   return (
     <footer className="flex flex-wrap items-center justify-between gap-2 border border-ink bg-paper px-4 py-2 text-xs uppercase tracking-[0.18em]">
       <span>
-        Frame {frame.toString().padStart(3, "0")} · {formatTime(currentTime)} / {formatTime(durationSec)} ({
-          totalFrames
-        } frames @ {fps}fps)
+        Frame {frame.toString().padStart(3, "0")} · {formatTime(currentTime)} /{" "}
+        {formatTime(durationSec)} ({totalFrames} frames @ {fps}fps)
       </span>
-      <span>
-        {resolutionText}
-      </span>
+      <span>{resolutionText}</span>
       <span>Effect · {effect.name}</span>
       <span>
-        Seed · <span suppressHydrationWarning>{mounted ? seed : "--"}</span> ·
-        {" "}
+        Seed · <span suppressHydrationWarning>{mounted ? seed : "--"}</span> ·{" "}
         {playing ? "Playing" : "Paused"}
       </span>
       <div className="flex items-center gap-2">
@@ -61,7 +59,10 @@ export function StatusBar() {
           Toast Log
         </button>
         <span className="text-[10px] opacity-60">
-          by Lorenzo Boschi
+          <a href="https://www.instagram.com/lorentsoboschi/">
+            {" "}
+            by Lorenzo Boschi
+          </a>
         </span>
       </div>
     </footer>
