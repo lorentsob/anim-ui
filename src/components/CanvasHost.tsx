@@ -237,20 +237,11 @@ export function CanvasHost() {
             const totalFrames = Math.max(1, Math.round(runtime.durationSec * targetFps));
             const frameDuration = 1 / targetFps;
 
-            // Handle timeline synchronization FIRST
+            // Handle timeline synchronization directly with stores
             let normalizedTime: number;
 
             if (timelineMode) {
-              // Check if timeline was manually scrubbed (user interaction)
-              const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
-
-              if (timelineChanged && !runtime.playing) {
-                // User scrubbed timeline while paused - use timeline time
-                normalizedTime = timelineCurrentTime;
-                frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-                lastTimelineTime.current = timelineCurrentTime;
-                console.log('CanvasHost: Timeline scrubbed to:', normalizedTime, 'frame:', frameIndex);
-              } else if (runtime.playing) {
+              if (runtime.playing) {
                 // Animation is playing - advance frames and update timeline
                 accumulator += deltaSec;
                 if (accumulator >= frameDuration) {
@@ -260,14 +251,24 @@ export function CanvasHost() {
                 }
                 normalizedTime = frameIndex / totalFrames;
 
-                // Update timeline to match animation
+                // Update timeline to match animation (this should move the timeline scrubber)
                 setCurrentTime(normalizedTime);
                 lastTimelineTime.current = normalizedTime;
-                console.log('CanvasHost: Timeline updated to:', normalizedTime, 'frame:', frameIndex);
+                console.log('CanvasHost: Timeline updated during playback to:', normalizedTime, 'frame:', frameIndex);
               } else {
-                // Paused - use current timeline position
-                normalizedTime = timelineCurrentTime;
-                frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                // Animation is paused - check if timeline was scrubbed
+                const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
+
+                if (timelineChanged) {
+                  // Timeline was scrubbed - use timeline time directly
+                  normalizedTime = timelineCurrentTime;
+                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                  lastTimelineTime.current = timelineCurrentTime;
+                } else {
+                  // Paused and no scrubbing - use current timeline position
+                  normalizedTime = timelineCurrentTime;
+                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                }
               }
             } else {
               // No timeline mode - normal playback
@@ -302,7 +303,6 @@ export function CanvasHost() {
                   runtime.params[paramKey]
                 );
                 animatedParams[paramKey] = animatedValue;
-                console.log(`CanvasHost: Animating ${paramKey}:`, runtime.params[paramKey], '->', animatedValue, 'at time', normalizedTime);
               });
               effectParams = animatedParams;
             }

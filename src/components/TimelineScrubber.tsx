@@ -23,7 +23,7 @@ export default function TimelineScrubber({
   const [hoverTime, setHoverTime] = useState<number | null>(null);
 
   const { currentTime, setCurrentTime, timelines } = useTimelineStore();
-  const { durationSec, fps, currentFrame } = useEditorStore();
+  const { durationSec, fps, currentFrame, setCurrentFrame } = useEditorStore();
   const totalFrames = Math.ceil(durationSec * fps);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -33,9 +33,13 @@ export default function TimelineScrubber({
     const rect = scrubberRef.current.getBoundingClientRect();
     const normalizedTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 
+    // Update timeline and frame immediately for responsive scrubbing
     setCurrentTime(normalizedTime);
+    const frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+    setCurrentFrame(frameIndex);
+    console.log('TimelineScrubber: Scrubbing to time:', normalizedTime, 'frame:', frameIndex);
     onScrub?.(normalizedTime);
-  }, [setCurrentTime, onScrub]);
+  }, [setCurrentTime, setCurrentFrame, totalFrames, onScrub]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!scrubberRef.current) return;
@@ -44,12 +48,16 @@ export default function TimelineScrubber({
     const normalizedTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 
     if (isDragging) {
+      // Update timeline and frame immediately for continuous scrubbing
       setCurrentTime(normalizedTime);
+      const frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+      setCurrentFrame(frameIndex);
+      console.log('TimelineScrubber: Continuous scrubbing to time:', normalizedTime, 'frame:', frameIndex);
       onScrub?.(normalizedTime);
     } else {
       setHoverTime(normalizedTime);
     }
-  }, [isDragging, setCurrentTime, onScrub]);
+  }, [isDragging, setCurrentTime, setCurrentFrame, totalFrames, onScrub]);
 
   const handleReactMouseMove = useCallback((e: React.MouseEvent) => {
     if (!scrubberRef.current || isDragging) return;
@@ -199,9 +207,9 @@ function FrameMarkers({ totalFrames, duration }: { totalFrames: number; duration
 
 export function PlaybackControls({ className = "" }: { className?: string }) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  
+
   const { currentTime, setCurrentTime } = useTimelineStore();
-  const { durationSec, fps, playing, setPlaying } = useEditorStore();
+  const { durationSec, fps, playing, setPlaying, setCurrentFrame } = useEditorStore();
 
   const play = useCallback(() => {
     setPlaying(true);
@@ -214,19 +222,26 @@ export function PlaybackControls({ className = "" }: { className?: string }) {
   const stop = useCallback(() => {
     setPlaying(false);
     setCurrentTime(0);
-  }, [setPlaying, setCurrentTime]);
+    setCurrentFrame(0);
+  }, [setPlaying, setCurrentTime, setCurrentFrame]);
 
   const stepForward = useCallback(() => {
     const totalFrames = durationSec * fps;
     const frameTime = 1 / totalFrames;
-    setCurrentTime(Math.min(1, currentTime + frameTime));
-  }, [durationSec, fps, currentTime, setCurrentTime]);
+    const newTime = Math.min(1, currentTime + frameTime);
+    setCurrentTime(newTime);
+    const frameIndex = Math.round(newTime * totalFrames) % totalFrames;
+    setCurrentFrame(frameIndex);
+  }, [durationSec, fps, currentTime, setCurrentTime, setCurrentFrame]);
 
   const stepBackward = useCallback(() => {
     const totalFrames = durationSec * fps;
     const frameTime = 1 / totalFrames;
-    setCurrentTime(Math.max(0, currentTime - frameTime));
-  }, [durationSec, fps, currentTime, setCurrentTime]);
+    const newTime = Math.max(0, currentTime - frameTime);
+    setCurrentTime(newTime);
+    const frameIndex = Math.round(newTime * totalFrames) % totalFrames;
+    setCurrentFrame(frameIndex);
+  }, [durationSec, fps, currentTime, setCurrentTime, setCurrentFrame]);
 
 
   return (

@@ -3,7 +3,7 @@
  * The main timeline interface for BW Animator
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Timeline from "./Timeline";
 import TimelineScrubber, { PlaybackControls } from "./TimelineScrubber";
 import { useTimelineStore } from "../store/useTimeline";
@@ -23,8 +23,8 @@ export default function TimelinePanel({
 }: TimelinePanelProps) {
   const [timelineHeight, setTimelineHeight] = useState(180);
 
-  const { timelines, currentTime, clearAllTimelines } = useTimelineStore();
-  const { durationSec, fps } = useEditorStore();
+  const { timelines, currentTime, clearAllTimelines, setCurrentTime } = useTimelineStore();
+  const { durationSec, fps, setCurrentFrame } = useEditorStore();
 
   const totalKeyframes = Object.values(timelines).reduce(
     (total, timeline) => total + timeline.keyframes.length,
@@ -32,8 +32,14 @@ export default function TimelinePanel({
   );
 
   const handleScrub = useCallback((time: number) => {
-    // Optional: Trigger preview update during scrubbing
-  }, []);
+    // Real-time timeline scrubbing - update timeline and editor stores directly
+    setCurrentTime(time);
+
+    // Calculate frame and update editor store for immediate viewport response
+    const totalFrames = Math.max(1, Math.round(durationSec * fps));
+    const frameIndex = Math.round(time * totalFrames) % totalFrames;
+    setCurrentFrame(frameIndex);
+  }, [setCurrentTime, setCurrentFrame, durationSec, fps]);
 
   if (!isVisible) {
     return (

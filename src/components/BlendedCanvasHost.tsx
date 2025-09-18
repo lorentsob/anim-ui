@@ -81,19 +81,7 @@ export function BlendedCanvasHost() {
 
   // Track if timeline time changed externally (from scrubbing)
   const lastTimelineTime = useRef<number>(0);
-  const isTimelineControlled = useRef<boolean>(false);
-  const timelineControlTimeout = useRef<number | null>(null);
 
-  // Reset timeline control when timeline mode changes
-  useEffect(() => {
-    if (!timelineMode) {
-      isTimelineControlled.current = false;
-      if (timelineControlTimeout.current) {
-        clearTimeout(timelineControlTimeout.current);
-        timelineControlTimeout.current = null;
-      }
-    }
-  }, [timelineMode]);
 
   // Sync state changes
   useEffect(() => {
@@ -304,18 +292,9 @@ export function BlendedCanvasHost() {
               // Handle playback and time calculation
               let normalizedTime: number;
 
-              // Handle timeline synchronization FIRST
+              // Handle timeline synchronization directly with stores
               if (timelineMode) {
-                // Check if timeline was manually scrubbed (user interaction)
-                const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
-
-                if (timelineChanged && !runtime.playing) {
-                  // User scrubbed timeline while paused - use timeline time
-                  normalizedTime = timelineCurrentTime;
-                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-                  lastTimelineTime.current = timelineCurrentTime;
-                  console.log('Timeline scrubbed to:', normalizedTime, 'frame:', frameIndex);
-                } else if (runtime.playing) {
+                if (runtime.playing) {
                   // Animation is playing - advance frames and update timeline
                   accumulator += deltaSec;
                   if (accumulator >= frameDuration) {
@@ -325,14 +304,24 @@ export function BlendedCanvasHost() {
                   }
                   normalizedTime = frameIndex / totalFrames;
 
-                  // Update timeline to match animation
+                  // Update timeline to match animation (this should move the timeline scrubber)
                   setCurrentTime(normalizedTime);
                   lastTimelineTime.current = normalizedTime;
-                  console.log('Timeline updated to:', normalizedTime, 'frame:', frameIndex);
+                  console.log('BlendedCanvasHost: Timeline updated during playback to:', normalizedTime, 'frame:', frameIndex);
                 } else {
-                  // Paused - use current timeline position
-                  normalizedTime = timelineCurrentTime;
-                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                  // Animation is paused - check if timeline was scrubbed
+                  const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
+
+                  if (timelineChanged) {
+                    // Timeline was scrubbed - use timeline time directly
+                    normalizedTime = timelineCurrentTime;
+                    frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                    lastTimelineTime.current = timelineCurrentTime;
+                  } else {
+                    // Paused and no scrubbing - use current timeline position
+                    normalizedTime = timelineCurrentTime;
+                    frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                  }
                 }
               } else {
                 // No timeline mode - normal playback
@@ -443,7 +432,6 @@ export function BlendedCanvasHost() {
                       mainParams[paramKey]
                     );
                     animatedParams[paramKey] = animatedValue;
-                    console.log(`Animating ${paramKey}:`, mainParams[paramKey], '->', animatedValue, 'at time', normalizedTime);
                   });
                   effectParams = animatedParams;
                 } else if (layer.effectId === mainEffectId && !timelineMode) {
