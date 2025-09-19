@@ -27,7 +27,7 @@ export function KeyframeButton({ paramKey, value, className = "" }: KeyframeButt
     if (!timeline) return false;
     
     return timeline.keyframes.some(kf => 
-      Math.abs(kf.time - currentTime) < 0.001
+      Math.abs(kf.time - currentTime) < 0.0001
     );
   }, [timelines, paramKey, currentTime]);
   
@@ -107,7 +107,7 @@ export function KeyframeTrack({ paramKey, className = "" }: { paramKey: string; 
           key={index}
           className={`
             keyframe-marker
-            ${Math.abs(keyframe.time - currentTime) < 0.001 ? 'current' : ''}
+            ${Math.abs(keyframe.time - currentTime) < 0.0001 ? 'current' : ''}
           `}
           style={{ left: `${keyframe.time * 100}%` }}
           onClick={() => setCurrentTime(keyframe.time)}

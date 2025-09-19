@@ -3,7 +3,7 @@
  * Provides frame-accurate scrubbing and preview capabilities
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useTimelineStore } from "../store/useTimeline";
 import { useEditorStore } from "../store/useEditor";
 
@@ -21,25 +21,86 @@ export default function TimelineScrubber({
   const scrubberRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const pendingTimeRef = useRef<number | null>(null);
+  const wasPlayingRef = useRef(false);
 
   const { currentTime, setCurrentTime, timelines } = useTimelineStore();
-  const { durationSec, fps, currentFrame, setCurrentFrame } = useEditorStore();
-  const totalFrames = Math.ceil(durationSec * fps);
+  const editorState = useEditorStore();
+  const [fallbackPlaying, setFallbackPlaying] = useState(false);
+  const [fallbackFrame, setFallbackFrame] = useState(0);
+
+  const durationSec = typeof editorState.durationSec === "number"
+    ? editorState.durationSec
+    : (editorState as any).duration ?? 1;
+
+  const fps = typeof editorState.fps === "number"
+    ? editorState.fps
+    : (editorState as any).framesPerSecond ?? 30;
+
+  const currentFrame = typeof editorState.currentFrame === "number"
+    ? editorState.currentFrame
+    : fallbackFrame;
+
+  const setEditorCurrentFrame = typeof editorState.setCurrentFrame === "function"
+    ? editorState.setCurrentFrame
+    : setFallbackFrame;
+
+  const playing = typeof editorState.playing === "boolean"
+    ? editorState.playing
+    : fallbackPlaying;
+
+  const setEditorPlaying = typeof editorState.setPlaying === "function"
+    ? editorState.setPlaying
+    : setFallbackPlaying;
+  const totalFrames = Math.max(1, Math.round(durationSec * fps));
+  const maxFrameIndex = Math.max(0, totalFrames - 1);
+
+  const applyTimelineUpdate = useCallback((time: number) => {
+    const clamped = Math.max(0, Math.min(1, time));
+    setCurrentTime(clamped);
+    const frameIndex = maxFrameIndex > 0 ? Math.round(clamped * maxFrameIndex) : 0;
+    setEditorCurrentFrame(frameIndex);
+    onScrub?.(clamped);
+  }, [maxFrameIndex, onScrub, setEditorCurrentFrame, setCurrentTime]);
+
+  const scheduleTimelineUpdate = useCallback((time: number) => {
+    const clamped = Math.max(0, Math.min(1, time));
+    pendingTimeRef.current = clamped;
+    if (rafIdRef.current !== null) return;
+
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const pending = pendingTimeRef.current;
+      pendingTimeRef.current = null;
+      if (pending !== null) {
+        applyTimelineUpdate(pending);
+      }
+    });
+  }, [applyTimelineUpdate]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!scrubberRef.current) return;
 
-    setIsDragging(true);
     const rect = scrubberRef.current.getBoundingClientRect();
     const normalizedTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 
-    // Update timeline and frame immediately for responsive scrubbing
-    setCurrentTime(normalizedTime);
-    const frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-    setCurrentFrame(frameIndex);
-    console.log('TimelineScrubber: Scrubbing to time:', normalizedTime, 'frame:', frameIndex);
-    onScrub?.(normalizedTime);
-  }, [setCurrentTime, setCurrentFrame, totalFrames, onScrub]);
+    wasPlayingRef.current = playing;
+    if (playing) {
+      setEditorPlaying(false);
+    }
+
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    pendingTimeRef.current = null;
+
+    setIsDragging(true);
+    setHoverTime(normalizedTime);
+    applyTimelineUpdate(normalizedTime);
+    e.preventDefault();
+  }, [applyTimelineUpdate, playing, setEditorPlaying]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!scrubberRef.current) return;
@@ -48,16 +109,12 @@ export default function TimelineScrubber({
     const normalizedTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 
     if (isDragging) {
-      // Update timeline and frame immediately for continuous scrubbing
-      setCurrentTime(normalizedTime);
-      const frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-      setCurrentFrame(frameIndex);
-      console.log('TimelineScrubber: Continuous scrubbing to time:', normalizedTime, 'frame:', frameIndex);
-      onScrub?.(normalizedTime);
+      scheduleTimelineUpdate(normalizedTime);
+      e.preventDefault();
     } else {
       setHoverTime(normalizedTime);
     }
-  }, [isDragging, setCurrentTime, setCurrentFrame, totalFrames, onScrub]);
+  }, [isDragging, scheduleTimelineUpdate]);
 
   const handleReactMouseMove = useCallback((e: React.MouseEvent) => {
     if (!scrubberRef.current || isDragging) return;
@@ -68,8 +125,23 @@ export default function TimelineScrubber({
   }, [isDragging]);
 
   const handleMouseUp = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    if (pendingTimeRef.current !== null) {
+      applyTimelineUpdate(pendingTimeRef.current);
+      pendingTimeRef.current = null;
+    }
+
     setIsDragging(false);
-  }, []);
+
+    if (wasPlayingRef.current) {
+      setEditorPlaying(true);
+    }
+    wasPlayingRef.current = false;
+  }, [applyTimelineUpdate, setEditorPlaying]);
 
   const handleMouseLeave = useCallback(() => {
     setHoverTime(null);
@@ -87,17 +159,19 @@ export default function TimelineScrubber({
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Calculate frame-based time snapping
-  const snapToFrame = useCallback((time: number) => {
-    const frameTime = 1 / totalFrames;
-    return Math.round(time / frameTime) * frameTime;
-  }, [totalFrames]);
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
 
   const formatTime = useCallback((time: number) => {
     const seconds = time * durationSec;
-    const frame = Math.floor(time * totalFrames);
+    const frame = maxFrameIndex > 0 ? Math.round(time * maxFrameIndex) : 0;
     return { seconds, frame };
-  }, [durationSec, totalFrames]);
+  }, [durationSec, maxFrameIndex]);
 
   const currentFrameTime = formatTime(currentTime);
   const hoverFrameTime = hoverTime ? formatTime(hoverTime) : null;
@@ -118,6 +192,7 @@ export default function TimelineScrubber({
       <div
         ref={scrubberRef}
         className="relative h-8 bg-gray-200 rounded cursor-pointer select-none"
+        data-testid="timeline-scrubber-track"
         onMouseDown={handleMouseDown}
         onMouseMove={handleReactMouseMove}
         onMouseLeave={handleMouseLeave}
@@ -129,6 +204,7 @@ export default function TimelineScrubber({
         <div
           className="absolute top-0 left-0 h-full bg-blue-500 rounded transition-all duration-100"
           style={{ width: `${currentTime * 100}%` }}
+          role="presentation"
         />
 
         {/* Hover preview */}
@@ -136,6 +212,7 @@ export default function TimelineScrubber({
           <div
             className="absolute top-0 w-0.5 h-full bg-yellow-400 opacity-60"
             style={{ left: `${hoverTime * 100}%` }}
+            role="presentation"
           />
         )}
 
@@ -145,6 +222,7 @@ export default function TimelineScrubber({
             isDragging ? 'ring-2 ring-blue-300' : ''
           }`}
           style={{ left: `${currentTime * 100}%`, marginLeft: '-8px' }}
+          role="presentation"
         />
 
         {/* Frame markers */}
@@ -180,7 +258,9 @@ function ScrubberBackground({ timelines }: { timelines: Record<string, any> }) {
         <div
           key={time}
           className="absolute top-0 w-0.5 h-full bg-blue-300 opacity-50"
+          data-testid="timeline-keyframe-indicator"
           style={{ left: `${time * 100}%` }}
+          role="presentation"
         />
       ))}
     </>
@@ -198,6 +278,7 @@ function FrameMarkers({ totalFrames, duration }: { totalFrames: number; duration
         key={i}
         className="absolute top-0 w-px h-2 bg-gray-400 opacity-60"
         style={{ left: `${time * 100}%` }}
+        role="presentation"
       />
     );
   }
@@ -209,39 +290,89 @@ export function PlaybackControls({ className = "" }: { className?: string }) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const { currentTime, setCurrentTime } = useTimelineStore();
-  const { durationSec, fps, playing, setPlaying, setCurrentFrame } = useEditorStore();
+  const editorState = useEditorStore();
+  const [fallbackPlaying, setFallbackPlaying] = useState(false);
+  const [fallbackFrame, setFallbackFrame] = useState(0);
+
+  const durationSec = typeof editorState.durationSec === "number"
+    ? editorState.durationSec
+    : (editorState as any).duration ?? 1;
+
+  const fps = typeof editorState.fps === "number"
+    ? editorState.fps
+    : (editorState as any).framesPerSecond ?? 30;
+
+  const currentFrame = typeof editorState.currentFrame === "number"
+    ? editorState.currentFrame
+    : fallbackFrame;
+
+  const playing = typeof editorState.playing === "boolean"
+    ? editorState.playing
+    : fallbackPlaying;
+
+  const setEditorPlaying = typeof editorState.setPlaying === "function"
+    ? editorState.setPlaying
+    : setFallbackPlaying;
+
+  const setEditorCurrentFrame = typeof editorState.setCurrentFrame === "function"
+    ? editorState.setCurrentFrame
+    : setFallbackFrame;
 
   const play = useCallback(() => {
-    setPlaying(true);
-  }, [setPlaying]);
+    setEditorPlaying(true);
+  }, [setEditorPlaying]);
 
   const pause = useCallback(() => {
-    setPlaying(false);
-  }, [setPlaying]);
+    setEditorPlaying(false);
+  }, [setEditorPlaying]);
 
   const stop = useCallback(() => {
-    setPlaying(false);
+    setEditorPlaying(false);
     setCurrentTime(0);
-    setCurrentFrame(0);
-  }, [setPlaying, setCurrentTime, setCurrentFrame]);
+    setEditorCurrentFrame(0);
+  }, [setEditorPlaying, setCurrentTime, setEditorCurrentFrame]);
 
   const stepForward = useCallback(() => {
-    const totalFrames = durationSec * fps;
-    const frameTime = 1 / totalFrames;
-    const newTime = Math.min(1, currentTime + frameTime);
-    setCurrentTime(newTime);
-    const frameIndex = Math.round(newTime * totalFrames) % totalFrames;
-    setCurrentFrame(frameIndex);
-  }, [durationSec, fps, currentTime, setCurrentTime, setCurrentFrame]);
+    const total = Math.max(1, Math.round(durationSec * fps));
+    const maxFrame = Math.max(0, total - 1);
+    if (maxFrame === 0) return;
+
+    const nextFrame = Math.min(maxFrame, currentFrame + 1);
+    const normalized = maxFrame > 0 ? nextFrame / maxFrame : 0;
+    setCurrentTime(normalized);
+    setEditorCurrentFrame(nextFrame);
+  }, [currentFrame, durationSec, fps, setCurrentTime, setEditorCurrentFrame]);
 
   const stepBackward = useCallback(() => {
-    const totalFrames = durationSec * fps;
-    const frameTime = 1 / totalFrames;
-    const newTime = Math.max(0, currentTime - frameTime);
-    setCurrentTime(newTime);
-    const frameIndex = Math.round(newTime * totalFrames) % totalFrames;
-    setCurrentFrame(frameIndex);
-  }, [durationSec, fps, currentTime, setCurrentTime, setCurrentFrame]);
+    const total = Math.max(1, Math.round(durationSec * fps));
+    const maxFrame = Math.max(0, total - 1);
+    if (maxFrame === 0) return;
+
+    const previousFrame = Math.max(0, currentFrame - 1);
+    const normalized = maxFrame > 0 ? previousFrame / maxFrame : 0;
+    setCurrentTime(normalized);
+    setEditorCurrentFrame(previousFrame);
+  }, [currentFrame, durationSec, fps, setCurrentTime, setEditorCurrentFrame]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      event.preventDefault();
+      const currentlyPlaying = useEditorStore.getState().playing;
+      if (currentlyPlaying) {
+        pause();
+      } else {
+        play();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pause, play]);
 
 
   return (
@@ -249,6 +380,12 @@ export function PlaybackControls({ className = "" }: { className?: string }) {
       {/* Step backward */}
       <button
         onClick={stepBackward}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            stepBackward();
+          }
+        }}
         className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
         title="Previous frame"
       >
@@ -288,6 +425,12 @@ export function PlaybackControls({ className = "" }: { className?: string }) {
       {/* Step forward */}
       <button
         onClick={stepForward}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            stepForward();
+          }
+        }}
         className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
         title="Next frame"
       >

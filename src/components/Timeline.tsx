@@ -3,7 +3,7 @@
  * Provides comprehensive timeline controls for parameter automation
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useTimelineStore } from "../store/useTimeline";
 import { useEditorStore } from "../store/useEditor";
 import { getEffect } from "../effects";
@@ -56,7 +56,7 @@ export default function Timeline({ className = "", height = 200 }: TimelineProps
     const timeline = timelines[paramKey];
     if (!timeline) return;
 
-    const keyframe = timeline.keyframes.find(kf => Math.abs(kf.time - oldTime) < 0.001);
+    const keyframe = timeline.keyframes.find(kf => Math.abs(kf.time - oldTime) < 0.0001);
     if (!keyframe) return;
 
     updateKeyframe(paramKey, oldTime, newTime, keyframe.value);
@@ -83,8 +83,9 @@ export default function Timeline({ className = "", height = 200 }: TimelineProps
       {/* Timeline content */}
       <div
         ref={timelineRef}
-        className="timeline-content bg-white overflow-hidden"
+        className="timeline-content relative bg-white overflow-hidden"
         style={{ height: `${height}px` }}
+        data-testid="timeline-content"
         onClick={handleTimelineClick}
       >
         {/* Timeline ruler */}
@@ -99,6 +100,7 @@ export default function Timeline({ className = "", height = 200 }: TimelineProps
               timeline={timelines[param.key]}
               currentValue={params[param.key]}
               currentTime={currentTime}
+              durationSec={durationSec}
               onKeyframeDoubleClick={handleKeyframeDoubleClick}
               onKeyframeDrag={handleKeyframeDrag}
               onKeyframeRemove={removeKeyframe}
@@ -107,7 +109,9 @@ export default function Timeline({ className = "", height = 200 }: TimelineProps
         </div>
 
         {/* Current time indicator */}
-        <CurrentTimeIndicator currentTime={currentTime} />
+        <div className="absolute left-[7.5rem] right-8 top-0 bottom-0 pointer-events-none">
+          <CurrentTimeIndicator currentTime={currentTime} />
+        </div>
       </div>
     </div>
   );
@@ -149,41 +153,48 @@ function TimelineControls() {
 }
 
 function TimelineRuler({ zoom, duration }: { zoom: number; duration: number }) {
-  const markers = [];
   const markerCount = Math.min(20, Math.max(5, 10 * zoom));
 
-  for (let i = 0; i <= markerCount; i++) {
-    const time = i / markerCount;
-    const seconds = time * duration;
+  const markers = Array.from({ length: markerCount + 1 }).map((_, index) => {
+    const fraction = index / markerCount;
+    const seconds = fraction * duration;
+    const translate = fraction === 0 ? "translateX(0)" : fraction === 1 ? "translateX(-100%)" : "translateX(-50%)";
 
-    markers.push(
+    return (
       <div
-        key={i}
-        className="absolute flex flex-col items-center"
-        style={{ left: `${120 + (time * (100 - 12))}%` }}
+        key={index}
+        className="absolute top-0 flex flex-col items-center"
+        style={{ left: `${fraction * 100}%`, transform: translate }}
       >
-        <div className="w-px h-2 bg-gray-300"></div>
-        <span className="text-xs text-gray-500 mt-1">
+        <div className="h-3 w-px bg-gray-300" />
+        <span className="mt-1 text-[10px] font-mono text-gray-500">
           {seconds.toFixed(1)}s
         </span>
       </div>
     );
-  }
+  });
 
   return (
-    <div className="timeline-ruler relative h-8 bg-gray-50 border-b border-gray-200">
-      {markers}
+    <div className="timeline-ruler relative flex h-8 items-center bg-gray-50 border-b border-gray-200">
+      <div className="w-28 h-full border-r border-gray-200 bg-gray-50 flex items-center justify-center text-xs uppercase tracking-[0.2em] text-gray-500">
+        Time
+      </div>
+      <div className="relative h-full flex-1">
+        {markers}
+      </div>
     </div>
   );
 }
 
 function CurrentTimeIndicator({ currentTime }: { currentTime: number }) {
   return (
-    <div
-      className="absolute top-8 bottom-0 w-0.5 bg-red-500 pointer-events-none z-10"
-      style={{ left: `${120 + (currentTime * (100 - 12))}%` }}
-    >
-      <div className="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full"></div>
+    <div className="relative h-full">
+      <div
+        className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-20 shadow-[0_0_4px_rgba(239,68,68,0.35)]"
+        style={{ left: `${currentTime * 100}%`, transform: 'translateX(-50%)' }}
+      >
+        <div className="absolute -top-2 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-red-500" />
+      </div>
     </div>
   );
 }
@@ -193,6 +204,7 @@ type ParameterTrackProps = {
   timeline?: ParameterTimeline;
   currentValue: any;
   currentTime: number;
+  durationSec: number;
   onKeyframeDoubleClick: (paramKey: string, time: number) => void;
   onKeyframeDrag: (paramKey: string, oldTime: number, newTime: number) => void;
   onKeyframeRemove: (paramKey: string, time: number) => void;
@@ -203,36 +215,37 @@ function ParameterTrack({
   timeline,
   currentValue,
   currentTime,
+  durationSec,
   onKeyframeDoubleClick,
   onKeyframeDrag,
   onKeyframeRemove
 }: ParameterTrackProps) {
+  const setTimelineTime = useTimelineStore((state) => state.setCurrentTime);
   const [isDragging, setIsDragging] = useState<{ keyframe: Keyframe; offset: number } | null>(null);
+  const timelineAreaRef = useRef<HTMLDivElement | null>(null);
 
   const handleKeyframeMouseDown = useCallback((e: React.MouseEvent, keyframe: Keyframe) => {
     e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const trackRect = (e.currentTarget as HTMLElement).closest('.parameter-track')?.getBoundingClientRect();
-
-    if (trackRect) {
-      const offset = e.clientX - rect.left;
-      setIsDragging({ keyframe, offset });
-    }
-  }, []);
+    setTimelineTime(keyframe.time);
+    const area = timelineAreaRef.current;
+    if (!area) return;
+    const rect = area.getBoundingClientRect();
+    const offset = e.clientX - rect.left - keyframe.time * rect.width;
+    setIsDragging({ keyframe, offset });
+  }, [setTimelineTime]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
 
-    const track = document.querySelector(`[data-param="${param.key}"]`) as HTMLElement;
-    if (!track) return;
+    const area = timelineAreaRef.current;
+    if (!area) return;
 
-    const trackRect = track.getBoundingClientRect();
-    const timelineWidth = trackRect.width - 120;
-    const x = e.clientX - trackRect.left - 120 - isDragging.offset;
-    const newTime = Math.max(0, Math.min(1, x / timelineWidth));
+    const rect = area.getBoundingClientRect();
+    const x = e.clientX - rect.left - isDragging.offset;
+    const newTime = Math.max(0, Math.min(1, x / rect.width));
 
     onKeyframeDrag(param.key, isDragging.keyframe.time, newTime);
-  }, [isDragging, param.key, onKeyframeDrag]);
+  }, [isDragging, onKeyframeDrag, param.key]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
@@ -252,7 +265,7 @@ function ParameterTrack({
 
   return (
     <div
-      className="parameter-track relative h-8 border-b border-gray-100 hover:bg-gray-50"
+      className="parameter-track relative h-10 border-b border-gray-200 bg-white"
       data-param={param.key}
       onDoubleClick={() => onKeyframeDoubleClick(param.key, currentTime)}
     >
@@ -270,22 +283,66 @@ function ParameterTrack({
         </span>
       </div>
 
-      {/* Keyframes */}
-      {timeline?.keyframes.map((keyframe, index) => (
-        <KeyframeMarker
-          key={`${keyframe.time}-${index}`}
-          keyframe={keyframe}
-          paramKey={param.key}
-          onMouseDown={handleKeyframeMouseDown}
-          onRemove={onKeyframeRemove}
-          isDragging={isDragging?.keyframe === keyframe}
+      {/* Timeline lane */}
+      <div
+        ref={timelineAreaRef}
+        className="absolute left-[7.5rem] right-8 top-0 bottom-0"
+        data-timeline-area="true"
+      >
+        <TimelineLane durationSec={durationSec} />
+
+        <div className="relative h-full">
+          {timeline && timeline.keyframes.length > 1 && (
+            <AnimationCurve timeline={timeline} />
+          )}
+
+          {timeline?.keyframes.map((keyframe, index) => (
+            <KeyframeMarker
+              key={`${keyframe.time}-${index}`}
+              keyframe={keyframe}
+              paramKey={param.key}
+              isActive={Math.abs(keyframe.time - currentTime) < 0.0001}
+              durationSec={durationSec}
+              onMouseDown={handleKeyframeMouseDown}
+              onRemove={onKeyframeRemove}
+              isDragging={isDragging?.keyframe === keyframe}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineLane({ durationSec }: { durationSec: number }) {
+  const divisions = Array.from({ length: 5 }, (_, index) => index / 4);
+
+  const translateForFraction = (fraction: number) => {
+    if (fraction <= 0) return "translateX(0)";
+    if (fraction >= 1) return "translateX(-100%)";
+    return "translateX(-50%)";
+  };
+
+  return (
+    <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-y-2 inset-x-0 rounded-sm border border-gray-200/70 bg-gradient-to-b from-white via-gray-50 to-white shadow-inner" />
+      {divisions.map((fraction) => (
+        <div
+          key={fraction}
+          className="absolute top-2 bottom-2 w-px bg-gray-200"
+          style={{ left: `${fraction * 100}%`, transform: translateForFraction(fraction) }}
         />
       ))}
-
-      {/* Animation curve visualization */}
-      {timeline && timeline.keyframes.length > 1 && (
-        <AnimationCurve timeline={timeline} />
-      )}
+      {divisions.slice(1).map((fraction) => (
+        <span
+          key={`label-${fraction}`}
+          className="absolute -bottom-4 text-[10px] font-mono text-gray-400"
+          style={{ left: `${fraction * 100}%`, transform: translateForFraction(fraction) }}
+        >
+          {(durationSec * fraction).toFixed(1)}s
+        </span>
+      ))}
+      <div className="absolute inset-x-1 top-1/2 -translate-y-1/2 border-t border-dashed border-blue-100" />
     </div>
   );
 }
@@ -293,6 +350,8 @@ function ParameterTrack({
 type KeyframeMarkerProps = {
   keyframe: Keyframe;
   paramKey: string;
+  isActive: boolean;
+  durationSec: number;
   onMouseDown: (e: React.MouseEvent, keyframe: Keyframe) => void;
   onRemove: (paramKey: string, time: number) => void;
   isDragging: boolean;
@@ -301,41 +360,59 @@ type KeyframeMarkerProps = {
 function KeyframeMarker({
   keyframe,
   paramKey,
+  isActive,
+  durationSec,
   onMouseDown,
   onRemove,
   isDragging
 }: KeyframeMarkerProps) {
   return (
     <div
-      className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 border-2 border-white rounded-full cursor-pointer hover:bg-blue-600 shadow-sm z-20 ${
-        isDragging ? 'ring-2 ring-blue-300' : ''
-      }`}
-      style={{ left: `${120 + (keyframe.time * (100 - 12))}%`, marginLeft: '-6px' }}
-      onMouseDown={(e) => onMouseDown(e, keyframe)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onRemove(paramKey, keyframe.time);
-      }}
-      title={`${keyframe.value} @ ${(keyframe.time * 100).toFixed(1)}%`}
-    />
+      className="absolute inset-y-0 flex flex-col items-center justify-center"
+      style={{ left: `${keyframe.time * 100}%`, transform: 'translateX(-50%)' }}
+    >
+      {isActive && (
+        <span className="mb-2 rounded bg-white px-1 py-0.5 text-[10px] font-mono text-indigo-600 shadow-sm border border-indigo-100">
+          {(keyframe.time * durationSec).toFixed(2)}s
+        </span>
+      )}
+
+      <div
+        className={`relative h-3 w-3 cursor-pointer rounded-sm border border-white shadow-sm transition-transform duration-150 ease-out transform -translate-y-1/2 rotate-45 bg-blue-500 hover:bg-blue-600 ${
+          isDragging ? 'ring-2 ring-blue-300 scale-110' : ''
+        } ${isActive ? 'bg-indigo-500 scale-110 shadow-md' : ''}`}
+        onMouseDown={(e) => onMouseDown(e, keyframe)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onRemove(paramKey, keyframe.time);
+        }}
+        title={`${keyframe.value} @ ${(keyframe.time * 100).toFixed(1)}%`}
+      />
+    </div>
   );
 }
 
 function AnimationCurve({ timeline }: { timeline: ParameterTimeline }) {
-  const pathData = timeline.keyframes.map((keyframe, index) => {
-    const x = 120 + (keyframe.time * (100 - 12));
-    const y = 16; // Middle of track
-    return index === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-  }).join(' ');
+  if (timeline.keyframes.length < 2) return null;
+
+  const points = timeline.keyframes
+    .map((keyframe) => `${Math.max(0, Math.min(100, keyframe.time * 100))},50`)
+    .join(' ');
 
   return (
-    <svg className="absolute inset-0 pointer-events-none z-10">
-      <path
-        d={pathData}
+    <svg
+      className="absolute inset-0 h-full w-full pointer-events-none"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      <polyline
+        points={points}
         stroke="#3b82f6"
-        strokeWidth="1"
+        strokeWidth={2}
         fill="none"
-        opacity="0.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.45}
       />
     </svg>
   );

@@ -3,7 +3,7 @@
  * The main timeline interface for BW Animator
  */
 
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import Timeline from "./Timeline";
 import TimelineScrubber, { PlaybackControls } from "./TimelineScrubber";
 import { useTimelineStore } from "../store/useTimeline";
@@ -24,7 +24,19 @@ export default function TimelinePanel({
   const [timelineHeight, setTimelineHeight] = useState(180);
 
   const { timelines, currentTime, clearAllTimelines, setCurrentTime } = useTimelineStore();
-  const { durationSec, fps, setCurrentFrame } = useEditorStore();
+  const editorState = useEditorStore();
+
+  const durationSec = typeof editorState.durationSec === "number"
+    ? editorState.durationSec
+    : (editorState as any).duration ?? 1;
+
+  const fps = typeof editorState.fps === "number"
+    ? editorState.fps
+    : (editorState as any).framesPerSecond ?? 30;
+
+  const setCurrentFrame = typeof editorState.setCurrentFrame === "function"
+    ? editorState.setCurrentFrame
+    : () => {};
 
   const totalKeyframes = Object.values(timelines).reduce(
     (total, timeline) => total + timeline.keyframes.length,
@@ -37,7 +49,8 @@ export default function TimelinePanel({
 
     // Calculate frame and update editor store for immediate viewport response
     const totalFrames = Math.max(1, Math.round(durationSec * fps));
-    const frameIndex = Math.round(time * totalFrames) % totalFrames;
+    const maxFrameIndex = Math.max(0, totalFrames - 1);
+    const frameIndex = maxFrameIndex > 0 ? Math.round(time * maxFrameIndex) : 0;
     setCurrentFrame(frameIndex);
   }, [setCurrentTime, setCurrentFrame, durationSec, fps]);
 
@@ -121,4 +134,3 @@ function TimelineZoomControls() {
     </div>
   );
 }
-

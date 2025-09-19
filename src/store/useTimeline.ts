@@ -14,6 +14,15 @@ export interface ParameterTimeline {
   keyframes: Keyframe[];
 }
 
+const clamp01 = (value: number) => {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+};
+
+const TIME_EPSILON = 0.0001;
+
 interface TimelineState {
   // Timeline data
   timelines: Record<string, ParameterTimeline>; // paramKey -> timeline
@@ -35,6 +44,7 @@ interface TimelineState {
 
   // Interpolation
   getAnimatedValue: (paramKey: string, time: number, defaultValue: any) => any;
+  getKeyframesForParam: (paramKey: string) => Keyframe[];
   hasKeyframes: (paramKey: string) => boolean;
 }
 
@@ -45,13 +55,14 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   selectedKeyframes: [],
 
   addKeyframe: (paramKey, time, value) => set(state => {
+    const clampedTime = clamp01(time);
     const timeline = state.timelines[paramKey] || { paramKey, keyframes: [] };
 
     // Remove existing keyframe at this time if it exists
-    const newKeyframes = timeline.keyframes.filter(kf => Math.abs(kf.time - time) > 0.001);
+    const newKeyframes = timeline.keyframes.filter(kf => Math.abs(kf.time - clampedTime) > TIME_EPSILON);
 
     // Add new keyframe and sort by time
-    newKeyframes.push({ time, value, easing: "linear" });
+    newKeyframes.push({ time: clampedTime, value, easing: "linear" });
     newKeyframes.sort((a, b) => a.time - b.time);
 
     return {
@@ -66,7 +77,8 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const timeline = state.timelines[paramKey];
     if (!timeline) return state;
 
-    const newKeyframes = timeline.keyframes.filter(kf => Math.abs(kf.time - time) > 0.001);
+    const targetTime = clamp01(time);
+    const newKeyframes = timeline.keyframes.filter(kf => Math.abs(kf.time - targetTime) > TIME_EPSILON);
 
     if (newKeyframes.length === 0) {
       const { [paramKey]: removed, ...remainingTimelines } = state.timelines;
@@ -85,11 +97,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const timeline = state.timelines[paramKey];
     if (!timeline) return state;
 
-    const keyframeIndex = timeline.keyframes.findIndex(kf => Math.abs(kf.time - oldTime) < 0.001);
+    const keyframeIndex = timeline.keyframes.findIndex(kf => Math.abs(kf.time - oldTime) < TIME_EPSILON);
     if (keyframeIndex === -1) return state;
 
     const newKeyframes = [...timeline.keyframes];
-    newKeyframes[keyframeIndex] = { ...newKeyframes[keyframeIndex], time: newTime, value: newValue };
+    const clampedTime = clamp01(newTime);
+    newKeyframes[keyframeIndex] = { ...newKeyframes[keyframeIndex], time: clampedTime, value: newValue };
     newKeyframes.sort((a, b) => a.time - b.time);
 
     return {
@@ -104,7 +117,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const timeline = state.timelines[paramKey];
     if (!timeline) return state;
 
-    const keyframeIndex = timeline.keyframes.findIndex(kf => Math.abs(kf.time - time) < 0.001);
+    const keyframeIndex = timeline.keyframes.findIndex(kf => Math.abs(kf.time - time) < TIME_EPSILON);
     if (keyframeIndex === -1) return state;
 
     const newKeyframes = [...timeline.keyframes];
@@ -118,7 +131,13 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     };
   }),
 
-  setCurrentTime: (time) => set({ currentTime: Math.max(0, Math.min(1, time)) }),
+  setCurrentTime: (time) => set(state => {
+    const clamped = clamp01(time);
+    if (Math.abs(clamped - state.currentTime) < TIME_EPSILON) {
+      return state;
+    }
+    return { currentTime: clamped };
+  }),
 
   setZoom: (zoom) => set({ zoom: Math.max(1, Math.min(10, zoom)) }),
 
@@ -133,23 +152,24 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const timeline = get().timelines[paramKey];
     if (!timeline || timeline.keyframes.length === 0) return defaultValue;
 
+    const clampedTime = clamp01(time);
     // Find surrounding keyframes
     const keyframes = timeline.keyframes;
     // Use reverse iteration instead of findLast for compatibility
     let beforeFrame = null;
     for (let i = keyframes.length - 1; i >= 0; i--) {
-      if (keyframes[i].time <= time) {
+      if (keyframes[i].time <= clampedTime) {
         beforeFrame = keyframes[i];
         break;
       }
     }
-    const afterFrame = keyframes.find(kf => kf.time > time);
+    const afterFrame = keyframes.find(kf => kf.time > clampedTime);
 
     if (!beforeFrame) return keyframes[0].value;
     if (!afterFrame) return beforeFrame.value;
 
     // Calculate normalized time between keyframes
-    const t = (time - beforeFrame.time) / (afterFrame.time - beforeFrame.time);
+    const t = (clampedTime - beforeFrame.time) / (afterFrame.time - beforeFrame.time);
 
     // Apply easing function from the beforeFrame's easing setting
     const easedT = applyEasing(beforeFrame.easing, t);
@@ -160,6 +180,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
     // For non-numeric values, use step interpolation
     return easedT < 0.5 ? beforeFrame.value : afterFrame.value;
+  },
+
+  getKeyframesForParam: (paramKey) => {
+    const timeline = get().timelines[paramKey];
+    return timeline ? [...timeline.keyframes] : [];
   },
 
   hasKeyframes: (paramKey) => {

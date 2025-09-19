@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type p5 from "p5";
 
 import { getEffect } from "@/effects";
@@ -62,6 +62,20 @@ export function CanvasHost() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<RuntimeData>({ ...DEFAULT_RUNTIME });
   const effectCtxRef = useRef<EffectRuntime>({ data: {}, seedHash: hashSeed("init"), baseSeed: "init" });
+  const p5InstanceRef = useRef<p5 | null>(null);
+  const playingRef = useRef(runtimeRef.current.playing);
+  const timelineModeRef = useRef(false);
+  const timelineTimeRef = useRef(0);
+  const pendingRedrawRef = useRef(false);
+  const lastTimelineBroadcastRef = useRef(0);
+
+  const requestRedrawIfPaused = useCallback(() => {
+    if (playingRef.current) return;
+    const instance = p5InstanceRef.current;
+    if (!instance) return;
+    pendingRedrawRef.current = true;
+    instance.redraw();
+  }, []);
 
   const width = useEditorStore((state) => state.width);
   const height = useEditorStore((state) => state.height);
@@ -88,50 +102,94 @@ export function CanvasHost() {
     runtimeRef.current.width = width;
     runtimeRef.current.height = height;
     runtimeRef.current.needsReset = true;
-  }, [width, height]);
+    requestRedrawIfPaused();
+  }, [width, height, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.fps = fps;
-  }, [fps]);
+    requestRedrawIfPaused();
+  }, [fps, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.durationSec = durationSec;
-  }, [durationSec]);
+    requestRedrawIfPaused();
+  }, [durationSec, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.playing = playing;
+    playingRef.current = playing;
   }, [playing]);
 
   useEffect(() => {
     runtimeRef.current.effectId = effectId;
     runtimeRef.current.params = cloneParams(params);
     runtimeRef.current.needsReset = true;
-  }, [effectId]);
+    requestRedrawIfPaused();
+  }, [effectId, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.params = cloneParams(params);
     runtimeRef.current.needsReset = true;
-  }, [params]);
+    requestRedrawIfPaused();
+  }, [params, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.seed = seed;
     runtimeRef.current.needsReset = true;
-  }, [seed]);
+    requestRedrawIfPaused();
+  }, [seed, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.background = background;
     runtimeRef.current.needsReset = true;
-  }, [background]);
+    requestRedrawIfPaused();
+  }, [background, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.invert = invert;
     runtimeRef.current.needsReset = true;
-  }, [invert]);
+    requestRedrawIfPaused();
+  }, [invert, requestRedrawIfPaused]);
 
   useEffect(() => {
     runtimeRef.current.qualityMode = qualityMode;
     runtimeRef.current.needsReset = true;
-  }, [qualityMode]);
+    requestRedrawIfPaused();
+  }, [qualityMode, requestRedrawIfPaused]);
+
+  useEffect(() => {
+    timelineModeRef.current = timelineMode;
+  }, [timelineMode]);
+
+  useEffect(() => {
+    timelineTimeRef.current = timelineCurrentTime;
+    if (timelineModeRef.current && !playingRef.current && p5InstanceRef.current) {
+      pendingRedrawRef.current = true;
+      p5InstanceRef.current.redraw();
+    }
+  }, [timelineCurrentTime]);
+
+  useEffect(() => {
+    const instance = p5InstanceRef.current;
+    if (!instance) return;
+
+    playingRef.current = playing;
+    if (timelineModeRef.current) {
+      if (playingRef.current) {
+        instance.loop();
+      } else {
+        instance.noLoop();
+        pendingRedrawRef.current = true;
+        instance.redraw();
+      }
+    } else {
+      if (playingRef.current) {
+        instance.loop();
+      } else {
+        instance.noLoop();
+      }
+    }
+  }, [timelineMode, playing]);
 
   useEffect(() => {
     let mounted = true;
@@ -167,6 +225,10 @@ export function CanvasHost() {
             lastTime = performance.now();
             lastFrameReported = -1;
             setCurrentFrame(0);
+            lastTimelineTime.current = 0;
+            lastTimelineBroadcastRef.current = 0;
+            timelineTimeRef.current = 0;
+            pendingRedrawRef.current = false;
 
             // Reset frame tracking
             frameIndex = 0;
@@ -230,44 +292,45 @@ export function CanvasHost() {
             const deltaSec = (now - lastTime) / 1000;
             lastTime = now;
 
-            const targetFps = Math.max(
-              1,
-              runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
-            );
-            const totalFrames = Math.max(1, Math.round(runtime.durationSec * targetFps));
-            const frameDuration = 1 / targetFps;
+            const baseFps = Math.max(1, runtime.fps);
+            const frameCount = Math.max(1, Math.round(runtime.durationSec * baseFps));
+            const maxFrameIndex = Math.max(0, frameCount - 1);
+            const isTimelineMode = timelineModeRef.current;
+            const frameDuration = 1 / baseFps;
 
             // Handle timeline synchronization directly with stores
             let normalizedTime: number;
 
-            if (timelineMode) {
+            if (isTimelineMode) {
               if (runtime.playing) {
-                // Animation is playing - advance frames and update timeline
                 accumulator += deltaSec;
                 if (accumulator >= frameDuration) {
                   const steps = Math.max(1, Math.floor(accumulator / frameDuration));
                   accumulator -= steps * frameDuration;
-                  frameIndex = (frameIndex + steps) % totalFrames;
+                  frameIndex = (frameIndex + steps) % frameCount;
                 }
-                normalizedTime = frameIndex / totalFrames;
+                normalizedTime = maxFrameIndex > 0 ? frameIndex / maxFrameIndex : 0;
 
-                // Update timeline to match animation (this should move the timeline scrubber)
-                setCurrentTime(normalizedTime);
+                if (Math.abs(normalizedTime - lastTimelineBroadcastRef.current) > 0.0001) {
+                  lastTimelineBroadcastRef.current = normalizedTime;
+                  setCurrentTime(normalizedTime);
+                }
                 lastTimelineTime.current = normalizedTime;
-                console.log('CanvasHost: Timeline updated during playback to:', normalizedTime, 'frame:', frameIndex);
               } else {
-                // Animation is paused - check if timeline was scrubbed
-                const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
+                const externalTimelineTime = timelineTimeRef.current;
+                const timeChanged = Math.abs(externalTimelineTime - lastTimelineTime.current) > 0.0001;
 
-                if (timelineChanged) {
-                  // Timeline was scrubbed - use timeline time directly
-                  normalizedTime = timelineCurrentTime;
-                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-                  lastTimelineTime.current = timelineCurrentTime;
+                if (timeChanged) {
+                  const targetFrame = Math.min(
+                    maxFrameIndex,
+                    Math.max(0, Math.round(externalTimelineTime * maxFrameIndex))
+                  );
+                  frameIndex = targetFrame;
+                  normalizedTime = maxFrameIndex > 0 ? frameIndex / maxFrameIndex : 0;
+                  lastTimelineTime.current = normalizedTime;
+                  lastTimelineBroadcastRef.current = normalizedTime;
                 } else {
-                  // Paused and no scrubbing - use current timeline position
-                  normalizedTime = timelineCurrentTime;
-                  frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                  normalizedTime = lastTimelineTime.current;
                 }
               }
             } else {
@@ -277,10 +340,12 @@ export function CanvasHost() {
                 if (accumulator >= frameDuration) {
                   const steps = Math.max(1, Math.floor(accumulator / frameDuration));
                   accumulator -= steps * frameDuration;
-                  frameIndex = (frameIndex + steps) % totalFrames;
+                  frameIndex = (frameIndex + steps) % frameCount;
                 }
               }
-              normalizedTime = frameIndex / totalFrames;
+              normalizedTime = maxFrameIndex > 0 ? frameIndex / maxFrameIndex : 0;
+              lastTimelineTime.current = normalizedTime;
+              lastTimelineBroadcastRef.current = normalizedTime;
             }
 
             const ctxColors = computeColors(runtime.background, runtime.invert);
@@ -294,7 +359,7 @@ export function CanvasHost() {
 
             // Use animated parameters if timeline mode is enabled
             let effectParams = runtime.params;
-            if (timelineMode) {
+            if (isTimelineMode) {
               const animatedParams: ParamValues = {};
               Object.keys(runtime.params).forEach(paramKey => {
                 const animatedValue = getAnimatedValue(
@@ -308,24 +373,25 @@ export function CanvasHost() {
             }
 
             p.background(ctxColors.paper);
-            currentEffect.update(p, ctx, frameIndex / targetFps, frameIndex, effectParams);
-            currentEffect.render(p, ctx, frameIndex / targetFps, frameIndex, effectParams);
+            const frameTimeSec = frameIndex / baseFps;
+            currentEffect.update(p, ctx, frameTimeSec, frameIndex, effectParams);
+            currentEffect.render(p, ctx, frameTimeSec, frameIndex, effectParams);
 
             if (frameIndex !== lastFrameReported) {
               lastFrameReported = frameIndex;
               setCurrentFrame(frameIndex);
             }
+
+            pendingRedrawRef.current = false;
           } catch (error) {
             // Graceful error handling during animation
             const appError = createAnimationError("animation-render", error as Error, {
               effectId: runtime.effectId,
               frameIndex,
-              targetFps: Math.max(
-                1,
-                runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
-              )
+              targetFps: baseFps,
             });
             errorManager.handleError(appError);
+            pendingRedrawRef.current = false;
 
             // Try to continue with simplified rendering
             try {
@@ -341,6 +407,7 @@ export function CanvasHost() {
       };
 
         instance = new P5Constructor(sketch, containerRef.current);
+        p5InstanceRef.current = instance;
       } catch (error) {
         const appError = createCanvasError("p5-setup", error as Error);
         await errorManager.handleError(appError);
@@ -355,6 +422,7 @@ export function CanvasHost() {
       if (instance) {
         instance.remove();
       }
+      p5InstanceRef.current = null;
     };
   }, []);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type p5 from "p5";
 
 import { getEffect } from "@/effects";
@@ -58,6 +58,20 @@ export function BlendedCanvasHost() {
   });
 
   const layerRuntimesRef = useRef<Map<string, LayerRuntime>>(new Map());
+  const p5InstanceRef = useRef<p5 | null>(null);
+  const playingRef = useRef(runtimeRef.current.playing);
+  const timelineModeRef = useRef(false);
+  const timelineTimeRef = useRef(0);
+  const pendingRedrawRef = useRef(false);
+  const lastTimelineBroadcastRef = useRef(0);
+
+  const requestRedrawIfPaused = useCallback(() => {
+    if (playingRef.current) return;
+    const instance = p5InstanceRef.current;
+    if (!instance) return;
+    pendingRedrawRef.current = true;
+    instance.redraw();
+  }, []);
 
   const width = useEditorStore((state) => state.width);
   const height = useEditorStore((state) => state.height);
@@ -88,38 +102,78 @@ export function BlendedCanvasHost() {
     runtimeRef.current.width = width;
     runtimeRef.current.height = height;
     runtimeRef.current.needsReset = true;
-  }, [width, height]);
+    requestRedrawIfPaused();
+  }, [width, height, requestRedrawIfPaused]);
 
-  useEffect(() => { runtimeRef.current.fps = fps; }, [fps]);
-  useEffect(() => { runtimeRef.current.durationSec = durationSec; }, [durationSec]);
-  useEffect(() => { runtimeRef.current.playing = playing; }, [playing]);
+  useEffect(() => { runtimeRef.current.fps = fps; requestRedrawIfPaused(); }, [fps, requestRedrawIfPaused]);
+  useEffect(() => { runtimeRef.current.durationSec = durationSec; requestRedrawIfPaused(); }, [durationSec, requestRedrawIfPaused]);
+  useEffect(() => {
+    runtimeRef.current.playing = playing;
+    playingRef.current = playing;
+  }, [playing]);
   useEffect(() => {
     runtimeRef.current.seed = seed;
     runtimeRef.current.needsReset = true;
-  }, [seed]);
+    requestRedrawIfPaused();
+  }, [seed, requestRedrawIfPaused]);
   useEffect(() => {
     runtimeRef.current.background = background;
     runtimeRef.current.needsReset = true;
-  }, [background]);
+    requestRedrawIfPaused();
+  }, [background, requestRedrawIfPaused]);
   useEffect(() => {
     runtimeRef.current.invert = invert;
     runtimeRef.current.needsReset = true;
-  }, [invert]);
+    requestRedrawIfPaused();
+  }, [invert, requestRedrawIfPaused]);
   useEffect(() => {
     runtimeRef.current.qualityMode = qualityMode;
     runtimeRef.current.needsReset = true;
-  }, [qualityMode]);
+    requestRedrawIfPaused();
+  }, [qualityMode, requestRedrawIfPaused]);
   useEffect(() => {
     runtimeRef.current.layers = layers;
     runtimeRef.current.needsReset = true;
-  }, [layers]);
+    requestRedrawIfPaused();
+  }, [layers, requestRedrawIfPaused]);
 
-  // Force re-render when timeline currentTime changes in timeline mode
   useEffect(() => {
-    if (timelineMode) {
-      // Timeline time changed, no need to reset but trigger a render
+    requestRedrawIfPaused();
+  }, [mainParams, mainEffectId, requestRedrawIfPaused]);
+
+  useEffect(() => {
+    timelineModeRef.current = timelineMode;
+  }, [timelineMode]);
+
+  useEffect(() => {
+    timelineTimeRef.current = timelineCurrentTime;
+    if (timelineModeRef.current && !playingRef.current && p5InstanceRef.current) {
+      pendingRedrawRef.current = true;
+      p5InstanceRef.current.redraw();
     }
-  }, [timelineCurrentTime, timelineMode]);
+  }, [timelineCurrentTime]);
+
+  useEffect(() => {
+    const instance = p5InstanceRef.current;
+    if (!instance) return;
+
+    playingRef.current = playing;
+    if (timelineModeRef.current) {
+      if (playingRef.current) {
+        instance.loop();
+      } else {
+        instance.noLoop();
+        pendingRedrawRef.current = true;
+        instance.redraw();
+      }
+    } else {
+      if (playingRef.current) {
+        instance.loop();
+      } else {
+        instance.noLoop();
+      }
+    }
+  }, [timelineMode, playing]);
 
   useEffect(() => {
     let mounted = true;
@@ -148,6 +202,10 @@ export function BlendedCanvasHost() {
               lastTime = performance.now();
               lastFrameReported = -1;
               setCurrentFrame(0);
+              lastTimelineTime.current = 0;
+              lastTimelineBroadcastRef.current = 0;
+              timelineTimeRef.current = 0;
+              pendingRedrawRef.current = false;
 
               // Reset frame tracking  
               frameIndex = 0;
@@ -282,58 +340,59 @@ export function BlendedCanvasHost() {
               const deltaSec = (now - lastTime) / 1000;
               lastTime = now;
 
-              const targetFps = Math.max(
-                1,
-                runtime.qualityMode === "preview" ? Math.min(runtime.fps, 12) : runtime.fps,
-              );
-              const totalFrames = Math.max(1, Math.round(runtime.durationSec * targetFps));
-              const frameDuration = 1 / targetFps;
+              const baseFps = Math.max(1, runtime.fps);
+              const frameCount = Math.max(1, Math.round(runtime.durationSec * baseFps));
+              const maxFrameIndex = Math.max(0, frameCount - 1);
+              const isTimelineMode = timelineModeRef.current;
+              const frameDuration = 1 / baseFps;
 
               // Handle playback and time calculation
               let normalizedTime: number;
 
-              // Handle timeline synchronization directly with stores
-              if (timelineMode) {
+              if (isTimelineMode) {
                 if (runtime.playing) {
-                  // Animation is playing - advance frames and update timeline
                   accumulator += deltaSec;
                   if (accumulator >= frameDuration) {
                     const steps = Math.max(1, Math.floor(accumulator / frameDuration));
                     accumulator -= steps * frameDuration;
-                    frameIndex = (frameIndex + steps) % totalFrames;
+                    frameIndex = (frameIndex + steps) % frameCount;
                   }
-                  normalizedTime = frameIndex / totalFrames;
+                  normalizedTime = maxFrameIndex > 0 ? frameIndex / maxFrameIndex : 0;
 
-                  // Update timeline to match animation (this should move the timeline scrubber)
-                  setCurrentTime(normalizedTime);
+                  if (Math.abs(normalizedTime - lastTimelineBroadcastRef.current) > 0.0001) {
+                    lastTimelineBroadcastRef.current = normalizedTime;
+                    setCurrentTime(normalizedTime);
+                  }
                   lastTimelineTime.current = normalizedTime;
-                  console.log('BlendedCanvasHost: Timeline updated during playback to:', normalizedTime, 'frame:', frameIndex);
                 } else {
-                  // Animation is paused - check if timeline was scrubbed
-                  const timelineChanged = Math.abs(timelineCurrentTime - lastTimelineTime.current) > 0.001;
+                  const externalTimelineTime = timelineTimeRef.current;
+                  const timelineChanged = Math.abs(externalTimelineTime - lastTimelineTime.current) > 0.0001;
 
                   if (timelineChanged) {
-                    // Timeline was scrubbed - use timeline time directly
-                    normalizedTime = timelineCurrentTime;
-                    frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
-                    lastTimelineTime.current = timelineCurrentTime;
+                    const targetFrame = Math.min(
+                      maxFrameIndex,
+                      Math.max(0, Math.round(externalTimelineTime * maxFrameIndex))
+                    );
+                    frameIndex = targetFrame;
+                    normalizedTime = maxFrameIndex > 0 ? frameIndex / maxFrameIndex : 0;
+                    lastTimelineTime.current = normalizedTime;
+                    lastTimelineBroadcastRef.current = normalizedTime;
                   } else {
-                    // Paused and no scrubbing - use current timeline position
-                    normalizedTime = timelineCurrentTime;
-                    frameIndex = Math.round(normalizedTime * totalFrames) % totalFrames;
+                    normalizedTime = lastTimelineTime.current;
                   }
                 }
               } else {
-                // No timeline mode - normal playback
                 if (runtime.playing) {
                   accumulator += deltaSec;
                   if (accumulator >= frameDuration) {
                     const steps = Math.max(1, Math.floor(accumulator / frameDuration));
                     accumulator -= steps * frameDuration;
-                    frameIndex = (frameIndex + steps) % totalFrames;
+                    frameIndex = (frameIndex + steps) % frameCount;
                   }
                 }
-                normalizedTime = frameIndex / totalFrames;
+                normalizedTime = maxFrameIndex > 0 ? frameIndex / maxFrameIndex : 0;
+                lastTimelineTime.current = normalizedTime;
+                lastTimelineBroadcastRef.current = normalizedTime;
               }
 
               const ctxColors = computeColors(runtime.background, runtime.invert);
@@ -343,7 +402,10 @@ export function BlendedCanvasHost() {
                 p.background(255); // fallback
               }
 
-              if (runtime.layers.length === 0) return;
+              if (runtime.layers.length === 0) {
+                pendingRedrawRef.current = false;
+                return;
+              }
 
               // Render each enabled layer to its graphics buffer
               runtime.layers.forEach(layer => {
@@ -422,7 +484,7 @@ export function BlendedCanvasHost() {
                 let effectParams = layer.params; // Default to layer's own parameters
 
                 // In timeline mode, check if this layer should use animated main parameters
-                if (timelineMode && layer.effectId === mainEffectId) {
+                if (isTimelineMode && layer.effectId === mainEffectId) {
                   // This layer uses the main effect - apply animated parameters
                   const animatedParams: ParamValues = {};
                   Object.keys(mainParams).forEach(paramKey => {
@@ -434,14 +496,15 @@ export function BlendedCanvasHost() {
                     animatedParams[paramKey] = animatedValue;
                   });
                   effectParams = animatedParams;
-                } else if (layer.effectId === mainEffectId && !timelineMode) {
+                } else if (layer.effectId === mainEffectId && !isTimelineMode) {
                   // This layer matches main effect and timeline is off, use main parameters
                   effectParams = mainParams;
                 }
 
                 try {
-                  effect.update(proxyP5 as any, ctx, frameIndex / targetFps, frameIndex, effectParams);
-                  effect.render(proxyP5 as any, ctx, frameIndex / targetFps, frameIndex, effectParams);
+                  const frameTimeSec = frameIndex / baseFps;
+                  effect.update(proxyP5 as any, ctx, frameTimeSec, frameIndex, effectParams);
+                  effect.render(proxyP5 as any, ctx, frameTimeSec, frameIndex, effectParams);
                 } finally {
                   // Restore original methods
                   p.background = originalBackground;
@@ -521,17 +584,21 @@ export function BlendedCanvasHost() {
                 lastFrameReported = frameIndex;
                 setCurrentFrame(frameIndex);
               }
+
+              pendingRedrawRef.current = false;
             } catch (error) {
               console.error("Blend rendering failed:", error);
               p.background(255);
               p.fill(0);
               p.textAlign(p.CENTER, p.CENTER);
               p.text("Blending Error", p.width / 2, p.height / 2);
+              pendingRedrawRef.current = false;
             }
           };
         };
 
         instance = new P5Constructor(sketch, containerRef.current);
+        p5InstanceRef.current = instance;
       } catch (error) {
         console.error("P5 setup failed:", error);
         addNotification("Canvas setup failed. Please refresh the page.", "error");
@@ -545,6 +612,7 @@ export function BlendedCanvasHost() {
       if (instance) {
         instance.remove();
       }
+      p5InstanceRef.current = null;
     };
   }, []);
 
